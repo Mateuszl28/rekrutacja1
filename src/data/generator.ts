@@ -5,6 +5,7 @@
 import type { RoomKind } from '../types';
 import { getProduct, effectivePrice } from './products';
 import { halfExtents } from '../scene/geometry';
+import { solveLayout, type SolverItem, type Anchor } from './solver';
 
 export type Style = 'minimal' | 'cozy' | 'modern';
 
@@ -159,7 +160,38 @@ export function generateLayout(params: GenParams): GenPlacement[] {
       total -= price(c);
     }
   }
-  return cands.map(({ productId, variant, x, z, ry }) => ({ productId, variant, x, z, ry }));
+  // rozmieszczenie: meble podłogowe optymalizuje solver (bezkolizyjnie, przy ścianach),
+  // meble wiszące zostają przy swojej ścianie (planer je do niej przyklei)
+  const floor: Cand[] = [];
+  const wall: Cand[] = [];
+  for (const c of cands) (getProduct(c.productId)?.mount === 'wall' ? wall : floor).push(c);
+
+  const solverItems: SolverItem[] = floor.map((c) => {
+    const p = getProduct(c.productId)!;
+    return { w: p.size[0], d: p.size[2], ry: c.ry, anchor: anchorOf(c, width, depth) };
+  });
+  const solved = solveLayout(solverItems, width, depth, ((params.seed ?? 0) ^ 0x9e3779b9) >>> 0);
+
+  const floorPlacements: GenPlacement[] = floor.map((c, i) => ({ productId: c.productId, variant: c.variant, x: solved[i].x, z: solved[i].z, ry: c.ry }));
+  const wallPlacements: GenPlacement[] = wall.map((c) => ({ productId: c.productId, variant: c.variant, x: c.x, z: c.z, ry: c.ry }));
+  return [...floorPlacements, ...wallPlacements];
+}
+
+/** Wyprowadza kotwicę (przy której ścianie/narożniku ma stać mebel) z jego roli/pozycji. */
+function anchorOf(c: Cand, w: number, d: number): Anchor {
+  const nearBack = c.z < -d / 2 + 1.3;
+  const nearFront = c.z > d / 2 - 1.3;
+  const nearLeft = c.x < -w / 2 + 1.3;
+  const nearRight = c.x > w / 2 - 1.3;
+  if (nearBack && nearLeft) return 'corner-bl';
+  if (nearBack && nearRight) return 'corner-br';
+  if (nearFront && nearLeft) return 'corner-fl';
+  if (nearFront && nearRight) return 'corner-fr';
+  if (nearBack) return 'wall-back';
+  if (nearFront) return 'wall-front';
+  if (nearLeft) return 'wall-left';
+  if (nearRight) return 'wall-right';
+  return 'center';
 }
 
 /** Szacowany koszt wygenerowanej aranżacji. */

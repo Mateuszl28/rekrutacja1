@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateLayout, layoutCost, type GenParams } from './generator';
 import { getProduct } from './products';
+import { halfExtents } from '../scene/geometry';
 
 const base: GenParams = { kind: 'living', width: 5, depth: 4, style: 'cozy' };
 
@@ -59,13 +60,14 @@ describe('generateLayout', () => {
     expect(new Set(seeds).size).toBeGreaterThan(1);
   });
 
-  it('mały pokój odrzuca meble, które się nie mieszczą', () => {
-    const small = generateLayout({ kind: 'living', width: 2.5, depth: 2.5, style: 'cozy' });
-    for (const p of small) {
+  it('w małym pokoju rozmieszczone meble mieszczą się w granicach (AABB)', () => {
+    const w = 2.5, d = 2.5;
+    for (const p of generateLayout({ kind: 'living', width: w, depth: d, style: 'cozy', seed: 3 })) {
       const prod = getProduct(p.productId)!;
       if (prod.mount === 'wall') continue;
-      const half = Math.max(prod.size[0], prod.size[2]) / 2;
-      expect(Math.abs(p.x) + half).toBeLessThanOrEqual(2.5 / 2 + 0.31);
+      const { hx, hz } = halfExtents(prod.size, p.ry);
+      expect(Math.abs(p.x) + hx).toBeLessThanOrEqual(w / 2 + 0.05);
+      expect(Math.abs(p.z) + hz).toBeLessThanOrEqual(d / 2 + 0.05);
     }
   });
 });
