@@ -10,6 +10,7 @@ import { PRODUCTS, getProduct, getVariant, effectiveSize, effectivePrice } from 
 import { TEMPLATES } from './data/templates';
 import { SETS } from './data/sets';
 import { PROMOS, normalizePromo, groupCart, computeTotals as computePricing } from './data/pricing';
+import { generateLayout, layoutCost, type Style } from './data/generator';
 import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
 const STORAGE_KEY = 'meblelab3d-projekt';
@@ -53,6 +54,8 @@ app.innerHTML = `
       <div class="menu-wrap">
         <button class="btn" id="btn-menu" title="Więcej opcji">⋯ Menu</button>
         <div class="menu" id="menu" hidden>
+          <button class="menu-item" id="btn-generate">🪄 Generuj aranżację (AI)</button>
+          <div class="menu-sep"></div>
           <button class="menu-item" id="btn-projects">📁 Moje projekty</button>
           <button class="menu-item" id="btn-orders">📋 Historia zamówień</button>
           <button class="menu-item" id="btn-admin">🛠️ Panel obsługi zamówień</button>
@@ -164,6 +167,29 @@ app.innerHTML = `
           </div>
         </div>
       </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="gen-modal">
+    <div class="modal gen-modal">
+      <div class="modal-head"><span>🪄 Generator aranżacji</span><button class="modal-close" id="gen-close">✕</button></div>
+      <div class="modal-body">
+        <p class="gen-hint">Wygeneruję gotową aranżację w bieżącym pokoju (<b id="gen-room"></b>, <span id="gen-dims"></span>). Ustaw styl i budżet — reszta dzieje się sama.</p>
+        <label class="gen-field">Styl
+          <select id="gen-style">
+            <option value="cozy">Przytulny</option>
+            <option value="minimal">Minimalistyczny</option>
+            <option value="modern">Nowoczesny</option>
+          </select>
+        </label>
+        <label class="gen-field">Budżet (opcjonalnie, zł)
+          <input id="gen-budget" type="number" min="0" step="500" placeholder="np. 8000">
+        </label>
+        <label class="gen-field">Opis dla AI (opcjonalnie)
+          <input id="gen-prompt" type="text" placeholder="np. przytulny salon dla rodziny z dziećmi">
+        </label>
+        <p class="gen-note" id="gen-note"></p>
+      </div>
+      <div class="modal-foot"><button class="checkout" id="gen-run">🪄 Generuj aranżację</button></div>
     </div>
   </div>
   <div class="modal-overlay" id="compare-modal">
@@ -680,6 +706,54 @@ compareBody.addEventListener('click', (e) => {
     if (compareSet.size) openCompare();
     else closeCompare();
   }
+});
+
+// —————————————————————— GENERATOR ARANŻACJI (AI / offline) ——————————————————————
+const genModal = $<HTMLDivElement>('#gen-modal');
+const genRun = $<HTMLButtonElement>('#gen-run');
+const genNote = $<HTMLParagraphElement>('#gen-note');
+
+function applyGenerated(placements: { productId: string; variant?: string; x: number; z: number; ry: number }[]): void {
+  const defs: { product: ProductDef; variant?: string; dx: number; dz: number; ry?: number }[] = [];
+  for (const p of placements) {
+    const product = getProduct(p.productId);
+    if (product) defs.push({ product, variant: p.variant, dx: p.x, dz: p.z, ry: p.ry });
+  }
+  planner.clear(false);
+  planner.addSet(defs); // jedna operacja historii; kolizje oznaczane po wstawieniu
+}
+
+$<HTMLButtonElement>('#btn-generate').addEventListener('click', () => {
+  $<HTMLElement>('#gen-room').textContent = room.kind === 'kitchen' ? 'Kuchnia' : 'Salon';
+  $<HTMLElement>('#gen-dims').textContent = `${room.width.toFixed(1)}×${room.depth.toFixed(1)} m`;
+  genNote.textContent = '';
+  genModal.classList.add('show');
+});
+$<HTMLButtonElement>('#gen-close').addEventListener('click', () => genModal.classList.remove('show'));
+genModal.addEventListener('click', (e) => { if (e.target === genModal) genModal.classList.remove('show'); });
+
+genRun.addEventListener('click', async () => {
+  const style = ($<HTMLSelectElement>('#gen-style').value || 'cozy') as Style;
+  const budgetRaw = $<HTMLInputElement>('#gen-budget').value;
+  const budget = budgetRaw ? Number(budgetRaw) : undefined;
+  const prompt = $<HTMLInputElement>('#gen-prompt').value.trim();
+  genRun.disabled = true;
+  genNote.textContent = 'Generuję aranżację…';
+
+  let placements: { productId: string; variant?: string; x: number; z: number; ry: number }[] | null = null;
+  let source: 'llm' | 'offline' = 'offline';
+  try {
+    const catalog = PRODUCTS.map((p) => ({ id: p.id, name: p.name, size: p.size, price: p.price, mount: p.mount, variants: p.variants?.map((v) => v.id) }));
+    const remote = await api.generateLayout({ kind: room.kind, width: room.width, depth: room.depth, style, budget, prompt: prompt || undefined, catalog });
+    if (remote?.placements?.length) { placements = remote.placements; source = 'llm'; }
+  } catch { /* backend/LLM niedostępny — fallback offline */ }
+  if (!placements) placements = generateLayout({ kind: room.kind, width: room.width, depth: room.depth, style, budget });
+
+  genRun.disabled = false;
+  if (!placements.length) { genNote.textContent = 'Nie udało się dobrać mebli dla tego pokoju.'; return; }
+  applyGenerated(placements);
+  genModal.classList.remove('show');
+  toast(`${source === 'llm' ? '🤖 AI' : '✨ Generator'}: ${placements.length} mebli · ${zl.format(layoutCost(placements))}`);
 });
 
 // zakładki katalogu
@@ -1638,6 +1712,7 @@ window.addEventListener('keydown', (e) => {
     if (welcomeModal.classList.contains('show')) closeWelcome();
     else if (productModal.classList.contains('show')) closeProduct();
     else if (compareModal.classList.contains('show')) closeCompare();
+    else if (genModal.classList.contains('show')) genModal.classList.remove('show');
     else if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
     else if (helpModal.classList.contains('show')) helpModal.classList.remove('show');
     else if (adminModal.classList.contains('show')) adminModal.classList.remove('show');

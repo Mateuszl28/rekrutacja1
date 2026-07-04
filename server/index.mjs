@@ -71,6 +71,53 @@ function readBody(req) {
 
 const randomId = () => 'c' + (db.seq++).toString(36) + Date.now().toString(36);
 
+/**
+ * Generuje aranżację przez darmowe API Groq (kompatybilne z OpenAI).
+ * Backend jest bezstanowy — katalog przychodzi w żądaniu. Zwraca listę pozycji
+ * przefiltrowaną do znanych produktów i granic pokoju. Rzuca przy błędzie sieci/parsowania.
+ */
+async function generateWithGroq(body, key) {
+  const { kind = 'living', width = 4, depth = 4, style = 'cozy', budget, prompt, catalog = [] } = body;
+  const ids = new Set(catalog.map((p) => p.id));
+  const list = catalog
+    .map((p) => `- ${p.id}: „${p.name}", ${p.size?.[0]}×${p.size?.[2]} m, ${p.price} zł${p.mount === 'wall' ? ', WISZĄCY (na ścianie)' : ''}${p.variants?.length ? `, warianty: ${p.variants.join('/')}` : ''}`)
+    .join('\n');
+  const sys =
+    `Jesteś projektantem wnętrz. Rozmieść meble w pokoju (${kind === 'kitchen' ? 'kuchnia' : 'salon'}) o wymiarach ${width}×${depth} m. ` +
+    `Układ współrzędnych: środek pokoju to (0,0); X od ${-width / 2} do ${width / 2}, Z od ${-depth / 2} do ${depth / 2}; ry to obrót w radianach. ` +
+    `Meble podłogowe pod ścianami odsuń o połowę ich głębokości. Nie nakładaj mebli na siebie. ` +
+    `Używaj wyłącznie productId z katalogu. Zwróć WYŁĄCZNIE JSON: {"placements":[{"productId","variant","x","z","ry"}]}.\n\nKATALOG:\n${list}`;
+  const user = `Styl: ${style}.${budget ? ` Budżet: do ${budget} zł.` : ''}${prompt ? ` Życzenie klienta: ${prompt}.` : ''} Zaproponuj kompletną, funkcjonalną aranżację.`;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
+      }),
+      signal: ctrl.signal,
+    });
+    if (!r.ok) throw new Error(`Groq HTTP ${r.status}`);
+    const data = await r.json();
+    const content = data.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content);
+    const raw = Array.isArray(parsed.placements) ? parsed.placements : [];
+    const mx = width / 2 - 0.3, mz = depth / 2 - 0.3;
+    const cl = (v, lim) => Math.max(-lim, Math.min(lim, Number(v) || 0));
+    return raw
+      .filter((p) => p && ids.has(p.productId))
+      .map((p) => ({ productId: p.productId, variant: p.variant || undefined, x: cl(p.x, mx), z: cl(p.z, mz), ry: Number(p.ry) || 0 }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -144,6 +191,18 @@ const server = createServer(async (req, res) => {
         const who = body.customer?.name ? ` — ${body.customer.name}` : '';
         console.log(`[order] #${orderNo}  ${Number(body.total) || 0} zł${who}`);
         return json(res, 201, { orderNo, createdAt });
+      }
+      if (req.method === 'POST' && pathname === '/api/generate') {
+        const key = process.env.GROQ_API_KEY;
+        if (!key) return json(res, 503, { error: 'llm-disabled' }); // brak klucza → front użyje generatora offline
+        const body = await readBody(req);
+        try {
+          const placements = await generateWithGroq(body, key);
+          return json(res, 200, { placements, source: 'llm' });
+        } catch (e) {
+          console.error('[generate]', e?.message || e);
+          return json(res, 502, { error: 'llm-failed' });
+        }
       }
       if (req.method === 'POST' && pathname === '/api/cart') {
         const body = await readBody(req);

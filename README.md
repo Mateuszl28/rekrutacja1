@@ -37,6 +37,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - ♥ **Ulubione / lista życzeń** — serce na kartach, licznik i filtr „tylko ulubione"; wybór zapamiętywany w przeglądarce.
 - ⇄ **Porównywarka produktów** — zaznacz do 4 mebli i zobacz specyfikacje obok siebie (cena/zakres cen, wymiary, kategoria, montaż, warianty, kolory, opis) z możliwością dodania do projektu wprost z tabeli.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **zestawy mebli** (np. stół + 6 krzeseł, strefa wypoczynku) dodawane do bieżącego pokoju jako jedna operacja.
+- 🪄 **Generator aranżacji (AI/offline)** — dobiera i rozstawia meble w bieżącym pokoju wg stylu i budżetu. Działa **offline** z reguł (deterministycznie, bez klucza), a po ustawieniu darmowego klucza LLM generuje z opisu tekstowego — z automatycznym fallbackiem do trybu offline.
 - 🧾 **Wydruk/PDF** podsumowania zamówienia.
 - 📐 **Rzut 2D z wymiarami** — schematyczny widok z góry (SVG, skala zachowana) z gabarytami mebli, numeracją, legendą i wymiarami ścian; gotowy do druku/PDF.
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
@@ -83,6 +84,8 @@ Czysta logika domenowa jest odseparowana od warstwy 3D/DOM i pokryta testami (Vi
 - `src/data/products.ts` — warianty (rozmiar/cena), spójność `variants[0]` z bazą.
 - `src/data/pricing.ts` — grupowanie koszyka po produkcie+wariancie, kody rabatowe
   (MEBLE10, GRATIS), podsumowanie (rabat %, darmowa dostawa, brak sumy < 0).
+- `src/data/generator.ts` — generator aranżacji (dobór i rozstawienie mebli wg
+  stylu/budżetu, granice pokoju, przycinanie do budżetu).
 - Integralność danych — elementy zestawów i aranżacji wskazują istniejące produkty
   i poprawne warianty.
 
@@ -164,6 +167,22 @@ KEY='C:\Users\lagoc\Desktop\vps.ppk' HOST='root@85.215.197.199' PORT=8090 bash d
 
 Skrypt buduje front, kopiuje `dist/` + serwer, instaluje usługę `deploy/meblelab-3d.service`
 (`Restart=always`, autostart) i restartuje ją — nie ruszając innych usług na serwerze.
+
+### Generator AI — włączenie darmowego LLM (opcjonalnie)
+
+Endpoint `POST /api/generate` domyślnie zwraca `503`, a front używa wtedy **generatora
+offline** (bez sieci i kluczy). Aby włączyć tryb LLM, ustaw w usłudze darmowy klucz
+[Groq](https://console.groq.com) (API zgodne z OpenAI):
+
+```ini
+# w deploy/meblelab-3d.service (sekcja [Service])
+Environment=GROQ_API_KEY=gsk_...            # darmowy klucz z console.groq.com
+Environment=GROQ_MODEL=llama-3.3-70b-versatile   # opcjonalnie
+```
+
+Backend jest bezstanowy — katalog trafia do modelu w żądaniu, a odpowiedź jest
+walidowana (tylko istniejące produkty, pozycje docinane do granic pokoju). Przy
+błędzie sieci/parsowania front cicho wraca do trybu offline.
 
 ## Kluczowe decyzje projektowe
 

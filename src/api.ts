@@ -43,6 +43,26 @@ export interface Snapshot {
   items: PlacedItemState[];
 }
 
+export interface GenPlacement {
+  productId: string;
+  variant?: string;
+  x: number;
+  z: number;
+  ry: number;
+}
+
+/** Parametry generowania aranżacji przez backend (LLM). */
+export interface GenerateRequest {
+  kind: RoomKind;
+  width: number;
+  depth: number;
+  style: string;
+  budget?: number;
+  prompt?: string;
+  /** Skrócony katalog przekazywany do modelu (backend jest bezstanowy). */
+  catalog: { id: string; name: string; size: [number, number, number]; price: number; mount?: string; variants?: string[] }[];
+}
+
 async function req<T>(url: string, opts?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(url, opts);
@@ -96,6 +116,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     }),
+  /** Generuje aranżację przez LLM (jeśli backend ma klucz). Zwraca null, gdy niedostępne — front używa wtedy generatora offline. */
+  generateLayout: (payload: GenerateRequest) => post<{ placements: GenPlacement[]; source?: string }>('/api/generate', payload),
   saveCart: (snapshot: Snapshot) => post<{ id: string }>('/api/cart', { snapshot }),
   loadCart: (id: string) => req<{ snapshot: Snapshot }>(`/api/cart/${id}`),
   listProjects: () => req<ProjectSummary[]>('/api/projects'),
