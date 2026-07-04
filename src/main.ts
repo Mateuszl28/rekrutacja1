@@ -5,7 +5,7 @@ import { Planner } from './scene/Planner';
 import { preloadModels } from './furniture/loader';
 import { renderThumbnails } from './furniture/thumbnails';
 import { api, type OrderPayloadItem, type OrderSummary } from './api';
-import { PRODUCTS, getProduct } from './data/products';
+import { PRODUCTS, getProduct, getVariant, effectiveSize, effectivePrice } from './data/products';
 import { TEMPLATES } from './data/templates';
 import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
@@ -277,6 +277,7 @@ planner.onCommit = pushHistory;
 // —————————————————————— KATALOG ——————————————————————
 const cardsEl = $<HTMLDivElement>('#cards');
 const chosenColor = new Map<string, number>();
+const chosenVariant = new Map<string, string>();
 let currentCat: RoomKind = 'living';
 let searchQuery = '';
 let sortMode = 'default';
@@ -305,13 +306,22 @@ function renderCatalog(cat: RoomKind): void {
         )
         .join('');
       const thumb = thumbs?.get(p.id);
+      const vId = chosenVariant.get(p.id);
+      const size = effectiveSize(p, vId);
+      const price = effectivePrice(p, vId);
+      const variantSel = p.variants
+        ? `<select class="variant-sel" data-id="${p.id}" title="Wariant rozmiaru">${p.variants
+            .map((v) => `<option value="${v.id}"${v.id === (vId ?? p.variants![0].id) ? ' selected' : ''}>${v.label}</option>`)
+            .join('')}</select>`
+        : '';
       return `
         <div class="card" draggable="true" data-id="${p.id}">
           ${thumb ? `<img class="thumb" src="${thumb}" alt="${p.name}" draggable="false">` : ''}
-          <div class="row"><span class="name">${p.name}</span><span class="price">${zl.format(p.price)}</span></div>
+          <div class="row"><span class="name">${p.name}</span><span class="price">${zl.format(price)}</span></div>
           <div class="desc">${p.description}</div>
+          ${variantSel ? `<div class="variant-row">${variantSel}</div>` : ''}
           <div class="meta">
-            <span class="dims">${p.size[0]}×${p.size[2]} m</span>
+            <span class="dims">${size[0]}×${size[2]} m</span>
             <span class="swatches">${p.colors.length > 1 ? swatches : ''}</span>
             <span class="add">Dodaj +</span>
           </div>
@@ -324,6 +334,7 @@ cardsEl.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
   const card = target.closest<HTMLDivElement>('.card');
   if (!card) return;
+  if (target.closest('.variant-sel')) return; // interakcja z selektorem wariantu
   const product = PRODUCTS.find((p) => p.id === card.dataset.id)!;
   const sw = target.closest<HTMLElement>('.swatch');
   if (sw) {
@@ -331,7 +342,14 @@ cardsEl.addEventListener('click', (e) => {
     renderCatalog(currentCat);
     return;
   }
-  planner.addProduct(product, chosenColor.get(product.id));
+  planner.addProduct(product, chosenColor.get(product.id), 0, 0, 0, chosenVariant.get(product.id));
+});
+
+cardsEl.addEventListener('change', (e) => {
+  const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('.variant-sel');
+  if (!sel || !sel.dataset.id) return;
+  chosenVariant.set(sel.dataset.id, sel.value);
+  renderCatalog(currentCat);
 });
 
 // drag&drop z katalogu na scenę
@@ -339,7 +357,7 @@ cardsEl.addEventListener('dragstart', (e) => {
   const card = (e.target as HTMLElement).closest<HTMLDivElement>('.card');
   if (!card || !e.dataTransfer) return;
   const id = card.dataset.id!;
-  e.dataTransfer.setData('text/plain', JSON.stringify({ id, color: chosenColor.get(id) }));
+  e.dataTransfer.setData('text/plain', JSON.stringify({ id, color: chosenColor.get(id), variant: chosenVariant.get(id) }));
   e.dataTransfer.effectAllowed = 'copy';
 });
 viewport.addEventListener('dragover', (e) => {
@@ -350,9 +368,9 @@ viewport.addEventListener('drop', (e) => {
   e.preventDefault();
   if (!e.dataTransfer) return;
   try {
-    const { id, color } = JSON.parse(e.dataTransfer.getData('text/plain'));
+    const { id, color, variant } = JSON.parse(e.dataTransfer.getData('text/plain'));
     const product = PRODUCTS.find((p) => p.id === id);
-    if (product) planner.addProductAtScreen(product, color, e.clientX, e.clientY);
+    if (product) planner.addProductAtScreen(product, color, e.clientX, e.clientY, variant);
   } catch { /* ignoruj */ }
 });
 
@@ -543,16 +561,23 @@ const selpanel = $<HTMLDivElement>('#selpanel');
 planner.onSelect = (item) => {
   updateHud();
   if (!item) { selpanel.classList.remove('show'); return; }
-  const [w, h, d] = item.product.size;
+  const [w, h, d] = item.size;
   const colors = item.product.colors
     .map((c) => `<span class="swatch ${c === item.color ? 'active' : ''}" data-color="${c}" style="background:${hex(c)}"></span>`)
     .join('');
+  const curVar = getVariant(item.product, item.variant);
+  const variantSel = item.product.variants
+    ? `<div class="divider"></div><select class="sel-variant" id="sp-variant" title="Rozmiar">${item.product.variants
+        .map((v) => `<option value="${v.id}"${v.id === curVar?.id ? ' selected' : ''}>${v.label} · ${zl.format(v.price)}</option>`)
+        .join('')}</select>`
+    : '';
   selpanel.innerHTML = `
     <div class="sel-info">
       <span class="title">${item.product.name}</span>
-      <span class="sel-dims">${w}×${d}×${h} m · ${zl.format(item.product.price)}</span>
+      <span class="sel-dims">${w}×${d}×${h} m · ${zl.format(item.price)}</span>
     </div>
     <span class="sel-warn" id="sp-warn">⚠ kolizja</span>
+    ${variantSel}
     <div class="divider"></div><div class="colors">${item.product.colors.length > 1 ? colors : ''}<label class="custom-color sel-cc" title="Własny kolor"><input type="color" id="sp-custom" value="${hex(item.color)}"></label></div>
     <div class="divider"></div>
     <button class="icon-btn" id="sp-rot" title="Obróć (R)">↻</button>
@@ -565,6 +590,8 @@ planner.onSelect = (item) => {
   );
   const spCustom = selpanel.querySelector<HTMLInputElement>('#sp-custom');
   spCustom?.addEventListener('input', () => planner.recolorSelected(parseInt(spCustom.value.slice(1), 16)));
+  const spVariant = selpanel.querySelector<HTMLSelectElement>('#sp-variant');
+  spVariant?.addEventListener('change', () => planner.setSelectedVariant(spVariant.value));
   $<HTMLButtonElement>('#sp-rot').addEventListener('click', () => planner.rotateSelected(Math.PI / 4));
   $<HTMLButtonElement>('#sp-dup').addEventListener('click', () => planner.duplicateSelected());
   $<HTMLButtonElement>('#sp-del').addEventListener('click', () => planner.deleteSelected());
@@ -594,56 +621,65 @@ const totalEl = $<HTMLSpanElement>('#total');
 const checkoutBtn = $<HTMLButtonElement>('#checkout');
 const hint = $<HTMLDivElement>('#hint');
 
-planner.onChange = () => {
-  const groups = new Map<string, { product: ProductDef; qty: number }>();
-  for (const item of planner.items) {
-    const g = groups.get(item.product.id) ?? { product: item.product, qty: 0 };
+/** Nazwa pozycji z etykietą wariantu (jeśli wybrany). */
+function itemLabel(product: ProductDef, variant?: string): string {
+  const v = getVariant(product, variant);
+  return v ? `${product.name} · ${v.label}` : product.name;
+}
+
+interface CartGroup { product: ProductDef; variant?: string; name: string; price: number; qty: number; }
+
+/** Grupuje meble po produkcie i wariancie (różne warianty = osobne pozycje). */
+function cartGroups(): CartGroup[] {
+  const map = new Map<string, CartGroup>();
+  for (const it of planner.items) {
+    const key = `${it.product.id}|${it.variant ?? ''}`;
+    const g = map.get(key) ?? { product: it.product, variant: it.variant, name: itemLabel(it.product, it.variant), price: it.price, qty: 0 };
     g.qty++;
-    groups.set(item.product.id, g);
+    map.set(key, g);
   }
+  return [...map.values()];
+}
+
+planner.onChange = () => {
+  const groups = cartGroups();
   hint.style.display = planner.items.length ? 'none' : '';
-  if (groups.size === 0) {
+  if (groups.length === 0) {
     cartItemsEl.innerHTML = `<div class="cart-empty">Koszyk jest pusty.<br>Dodaj meble z katalogu, a pojawią się tutaj.</div>`;
   } else {
-    cartItemsEl.innerHTML = [...groups.values()]
+    cartItemsEl.innerHTML = groups
       .map(
-        ({ product, qty }) => `
-        <div class="cart-item" data-id="${product.id}" title="Kliknij, aby wyśrodkować w scenie">
-          <div><div class="ci-name"><span class="qty-badge">${qty}×</span>${product.name}</div>
-          <div class="ci-sub">${zl.format(product.price)} / szt.</div></div>
+        ({ product, variant, name, price, qty }) => `
+        <div class="cart-item" data-id="${product.id}" data-variant="${variant ?? ''}" title="Kliknij, aby wyśrodkować w scenie">
+          <div><div class="ci-name"><span class="qty-badge">${qty}×</span>${name}</div>
+          <div class="ci-sub">${zl.format(price)} / szt.</div></div>
           <div class="ci-right">
-            <span class="ci-price">${zl.format(product.price * qty)}</span>
-            <button class="ci-remove" data-remove="${product.id}" title="Usuń jedną sztukę">−</button>
+            <span class="ci-price">${zl.format(price * qty)}</span>
+            <button class="ci-remove" data-remove="${product.id}" data-variant="${variant ?? ''}" title="Usuń jedną sztukę">−</button>
           </div>
         </div>`
       )
       .join('');
   }
-  const total = planner.items.reduce((s, i) => s + i.product.price, 0);
+  const total = planner.items.reduce((s, i) => s + i.price, 0);
   totalEl.textContent = zl.format(total);
   checkoutBtn.disabled = planner.items.length === 0;
 };
 
 function orderItems(): OrderPayloadItem[] {
-  const map = new Map<string, OrderPayloadItem>();
-  for (const it of planner.items) {
-    const e = map.get(it.product.id) ?? { productId: it.product.id, name: it.product.name, price: it.product.price, qty: 0 };
-    e.qty++;
-    map.set(it.product.id, e);
-  }
-  return [...map.values()];
+  return cartGroups().map((g) => ({ productId: g.product.id, name: g.name, price: g.price, qty: g.qty }));
 }
 
 cartItemsEl.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
-  const removeId = target.dataset.remove;
-  if (removeId) {
+  const removeBtn = target.closest<HTMLElement>('.ci-remove');
+  if (removeBtn?.dataset.remove) {
     e.stopPropagation();
-    planner.removeOneOfProduct(removeId);
+    planner.removeOneOfProduct(removeBtn.dataset.remove, removeBtn.dataset.variant || undefined);
     return;
   }
   const row = target.closest<HTMLDivElement>('.cart-item');
-  if (row?.dataset.id) planner.focusProduct(row.dataset.id);
+  if (row?.dataset.id) planner.focusProduct(row.dataset.id, row.dataset.variant || undefined);
 });
 
 // menu rozwijane („⋯ Menu")
@@ -662,7 +698,7 @@ document.addEventListener('click', () => {
 // —————————————————————— PROCES ZAMÓWIENIA (checkout) ——————————————————————
 const checkoutModal = $<HTMLDivElement>('#checkout-modal');
 const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-const totalOf = () => planner.items.reduce((s, i) => s + i.product.price, 0);
+const totalOf = () => planner.items.reduce((s, i) => s + i.price, 0);
 
 function openCheckout(): void {
   if (!planner.items.length) { toast('Dodaj meble do projektu, aby zamówić'); return; }
@@ -942,15 +978,10 @@ templatesBody.addEventListener('click', (e) => {
 // —————————————————————— WYDRUK / PDF ——————————————————————
 $<HTMLButtonElement>('#btn-print').addEventListener('click', () => {
   const shot = sm.captureScreenshot();
-  const groups = new Map<string, { product: ProductDef; qty: number }>();
-  for (const it of planner.items) {
-    const g = groups.get(it.product.id) ?? { product: it.product, qty: 0 };
-    g.qty++;
-    groups.set(it.product.id, g);
-  }
-  const total = planner.items.reduce((s, i) => s + i.product.price, 0);
-  const rows = [...groups.values()]
-    .map(({ product, qty }) => `<tr><td>${product.name}</td><td class="c">${qty}</td><td class="r">${zl.format(product.price)}</td><td class="r">${zl.format(product.price * qty)}</td></tr>`)
+  const groups = cartGroups();
+  const total = planner.items.reduce((s, i) => s + i.price, 0);
+  const rows = groups
+    .map(({ name, price, qty }) => `<tr><td>${name}</td><td class="c">${qty}</td><td class="r">${zl.format(price)}</td><td class="r">${zl.format(price * qty)}</td></tr>`)
     .join('');
   const roomName = room.kind === 'kitchen' ? 'Kuchnia' : 'Salon';
   const date = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());

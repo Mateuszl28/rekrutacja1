@@ -2,6 +2,14 @@
 
 export type RoomKind = 'living' | 'kitchen';
 
+/** Wariant rozmiarowy produktu (inny gabaryt i cena). Pierwszy wariant jest domyślny. */
+export interface ProductVariant {
+  id: string;
+  label: string;
+  size: [number, number, number];
+  price: number;
+}
+
 /** Definicja produktu w katalogu sklepu. */
 export interface ProductDef {
   id: string;
@@ -19,6 +27,8 @@ export interface ProductDef {
   mount?: 'floor' | 'wall';
   /** Wysokość środka mebla dla montażu ściennego (m). */
   mountHeight?: number;
+  /** Warianty rozmiarowe (opcjonalne). size/price produktu odpowiadają variants[0]. */
+  variants?: ProductVariant[];
 }
 
 /** Zserializowany stan pojedynczego mebla w projekcie (do zapisu/odczytu). */
@@ -28,4 +38,6 @@ export interface PlacedItemState {
   z: number;
   ry: number; // obrót wokół osi Y w radianach
   color: number;
+  /** Id wybranego wariantu rozmiarowego (jeśli produkt ma warianty). */
+  variant?: string;
 }

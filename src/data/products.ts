@@ -22,6 +22,11 @@ export const PRODUCTS: ProductDef[] = [
     size: [2.1, 0.85, 0.95],
     colors: [FABRIC.grey, FABRIC.teal, FABRIC.mustard, FABRIC.navy],
     description: 'Wygodna sofa z miękkimi poduchami, tapicerka w 4 kolorach.',
+    variants: [
+      { id: '3os', label: '3-osobowa', size: [2.1, 0.85, 0.95], price: 2499 },
+      { id: '2os', label: '2-osobowa', size: [1.6, 0.85, 0.95], price: 1999 },
+      { id: 'naroznik', label: 'Narożna', size: [2.6, 0.85, 1.5], price: 3299 },
+    ],
   },
   {
     id: 'armchair',
@@ -62,6 +67,11 @@ export const PRODUCTS: ProductDef[] = [
     size: [1.0, 1.8, 0.35],
     colors: [WOOD.oak, WOOD.white, DARK],
     description: 'Wysoki regał z otwartymi półkami na książki i dekoracje.',
+    variants: [
+      { id: 'w100', label: 'szer. 100 cm', size: [1.0, 1.8, 0.35], price: 1290 },
+      { id: 'w80', label: 'szer. 80 cm', size: [0.8, 1.8, 0.35], price: 1090 },
+      { id: 'w140', label: 'szer. 140 cm', size: [1.4, 1.8, 0.35], price: 1690 },
+    ],
   },
   {
     id: 'floor-lamp',
@@ -82,6 +92,11 @@ export const PRODUCTS: ProductDef[] = [
     size: [3.0, 0.03, 2.0],
     colors: [0xd9cbb8, FABRIC.grey, FABRIC.teal],
     description: 'Miękki dywan definiujący strefę wypoczynku.',
+    variants: [
+      { id: 'l', label: '200×300 cm', size: [3.0, 0.03, 2.0], price: 549 },
+      { id: 's', label: '160×230 cm', size: [2.3, 0.03, 1.6], price: 399 },
+      { id: 'xl', label: '240×340 cm', size: [3.4, 0.03, 2.4], price: 749 },
+    ],
   },
   {
     id: 'plant',
@@ -140,6 +155,11 @@ export const PRODUCTS: ProductDef[] = [
     size: [0.6, 0.9, 0.6],
     colors: [WOOD.white, DARK, WOOD.oak],
     description: 'Moduł dolny 60 cm z blatem roboczym i frontem.',
+    variants: [
+      { id: 's60', label: '60 cm', size: [0.6, 0.9, 0.6], price: 459 },
+      { id: 's45', label: '45 cm', size: [0.45, 0.9, 0.6], price: 399 },
+      { id: 's80', label: '80 cm', size: [0.8, 0.9, 0.6], price: 549 },
+    ],
   },
   {
     id: 'tall-cabinet',
@@ -162,6 +182,11 @@ export const PRODUCTS: ProductDef[] = [
     mount: 'wall',
     mountHeight: 1.75,
     description: 'Wisząca szafka górna — montowana na ścianie nad blatem.',
+    variants: [
+      { id: 's60', label: '60 cm', size: [0.6, 0.7, 0.35], price: 399 },
+      { id: 's45', label: '45 cm', size: [0.45, 0.7, 0.35], price: 349 },
+      { id: 's80', label: '80 cm', size: [0.8, 0.7, 0.35], price: 469 },
+    ],
   },
   {
     id: 'fridge',
@@ -222,6 +247,11 @@ export const PRODUCTS: ProductDef[] = [
     size: [1.8, 0.76, 0.9],
     colors: [WOOD.oak, WOOD.walnut, WOOD.white],
     description: 'Stół dla 6 osób do jadalni lub aneksu kuchennego.',
+    variants: [
+      { id: '6', label: 'na 6 osób', size: [1.8, 0.76, 0.9], price: 1490 },
+      { id: '4', label: 'na 4 osoby', size: [1.4, 0.76, 0.85], price: 1190 },
+      { id: '8', label: 'na 8 osób', size: [2.4, 0.76, 1.0], price: 1990 },
+    ],
   },
   {
     id: 'dining-chair',
@@ -237,4 +267,22 @@ export const PRODUCTS: ProductDef[] = [
 
 export function getProduct(id: string): ProductDef | undefined {
   return PRODUCTS.find((p) => p.id === id);
+}
+
+import type { ProductVariant } from '../types';
+
+/** Zwraca wybrany wariant produktu (lub domyślny variants[0]); undefined gdy produkt bez wariantów. */
+export function getVariant(p: ProductDef, id?: string): ProductVariant | undefined {
+  if (!p.variants || p.variants.length === 0) return undefined;
+  return (id ? p.variants.find((v) => v.id === id) : undefined) ?? p.variants[0];
+}
+
+/** Efektywny gabaryt z uwzględnieniem wariantu. */
+export function effectiveSize(p: ProductDef, id?: string): [number, number, number] {
+  return getVariant(p, id)?.size ?? p.size;
+}
+
+/** Efektywna cena z uwzględnieniem wariantu. */
+export function effectivePrice(p: ProductDef, id?: string): number {
+  return getVariant(p, id)?.price ?? p.price;
 }

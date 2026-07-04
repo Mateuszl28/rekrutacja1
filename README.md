@@ -12,6 +12,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 ## Funkcje
 
 - 🛒 **Katalog 3D** z 21 meblami w dwóch kategoriach (salon / kuchnia), warianty kolorów, ceny w PLN.
+- 📐 **Warianty rozmiarowe** — 6 produktów ma warianty (np. sofa 2-os/3-os/narożna, stół na 4/6/8 osób, szafki 45/60/80 cm) z własnym gabarytem i ceną; model skaluje się w scenie, a kolizje i koszyk używają rozmiaru wariantu. Wariant wybiera się w katalogu i można go zmienić dla ustawionego mebla.
 - 📦 **Realne modele `.glb`** — ładowane `GLTFLoaderem` z `public/models/` (pełny pipeline glTF, offline).
 - 🧩 **Planer = koszyk** — meble ustawione w pokoju tworzą listę zamówienia z sumą.
 - 🖱️ **Aranżacja w scenie** — dodawanie klikiem lub **przeciągnij-i-upuść**, przesuwanie po podłodze, obrót, zmiana koloru w locie, usuwanie, **duplikowanie**, **strzałki** do precyzyjnego przesuwania.
@@ -152,5 +153,4 @@ Skrypt buduje front, kopiuje `dist/` + serwer, instaluje usługę `deploy/meblel
 ## Możliwa rozbudowa
 
 Baza danych zamiast pliku JSON, konta użytkowników i zapis wielu projektów, wymiarowanie
-i eksport rzutu 2D (PDF), realne modele `.glb` z CDN, snapowanie mebli do siebie, warianty
-rozmiarowe produktów, płatności.
+i eksport rzutu 2D (PDF), realne modele `.glb` z CDN, płatności.

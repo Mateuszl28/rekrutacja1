@@ -230,6 +230,13 @@ aside.cart { border-left: 1px solid var(--line); }
 .card .swatches { display: flex; gap: 4px; }
 .swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); }
 .card .add { color: var(--accent-2); font-size: 12px; font-weight: 600; }
+.variant-row { margin: 0 0 8px; }
+.variant-sel, .sel-variant {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; max-width: 100%;
+}
+.variant-sel { width: 100%; }
+.selpanel .sel-variant { padding: 6px 8px; }
 
 /* —————————— VIEWPORT —————————— */
 .viewport { position: relative; min-width: 0; }

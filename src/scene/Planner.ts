@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { SceneManager } from './SceneManager';
 import type { Room } from './Room';
 import type { ProductDef, PlacedItemState } from '../types';
-import { getProduct } from '../data/products';
+import { getProduct, effectiveSize, effectivePrice, getVariant } from '../data/products';
 import { instantiate, applyColor } from '../furniture/loader';
 
 let UID = 0;
@@ -22,6 +22,12 @@ export interface PlacedItem {
   color: number;
   group: THREE.Group;
   overlap: boolean;
+  /** Efektywny gabaryt [w,h,d] (wariant lub bazowy) — używany do kolizji/granic. */
+  size: [number, number, number];
+  /** Efektywna cena (wariant lub bazowa). */
+  price: number;
+  /** Id wybranego wariantu rozmiarowego (jeśli produkt ma warianty). */
+  variant?: string;
 }
 
 /**
@@ -84,34 +90,35 @@ export class Planner {
   // ————— geometria kolizji (analityczne AABB w rzucie XZ) —————
 
   private isSolid(item: PlacedItem): boolean {
-    return item.product.size[1] >= 0.1; // dywany itp. nie kolidują
+    return item.size[1] >= 0.1; // dywany itp. nie kolidują
   }
 
   private isWall(item: PlacedItem): boolean {
     return item.product.mount === 'wall';
   }
 
-  private yRange(product: ProductDef): [number, number] {
-    const h = product.size[1];
-    if (product.mount === 'wall') {
-      const mh = product.mountHeight ?? 1.5;
+  private yRangeOf(item: PlacedItem): [number, number] {
+    const h = item.size[1];
+    if (item.product.mount === 'wall') {
+      const mh = item.product.mountHeight ?? 1.5;
       return [mh - h / 2, mh + h / 2];
     }
     return [0, h];
   }
 
-  private aabbAt(product: ProductDef, x: number, z: number, ry: number): AABB {
-    const [w, , d] = product.size;
+  /** AABB mebla przy zadanej pozycji/obrocie (uwzględnia efektywny gabaryt wariantu). */
+  private boxOf(item: PlacedItem, x: number, z: number, ry: number): AABB {
+    const [w, , d] = item.size;
     const c = Math.abs(Math.cos(ry));
     const s = Math.abs(Math.sin(ry));
     const hx = (c * w + s * d) / 2;
     const hz = (s * w + c * d) / 2;
-    const [minY, maxY] = this.yRange(product);
+    const [minY, maxY] = this.yRangeOf(item);
     return { minX: x - hx, maxX: x + hx, minZ: z - hz, maxZ: z + hz, minY, maxY };
   }
 
   private aabbOf(item: PlacedItem): AABB {
-    return this.aabbAt(item.product, item.group.position.x, item.group.position.z, item.group.rotation.y);
+    return this.boxOf(item, item.group.position.x, item.group.position.z, item.group.rotation.y);
   }
 
   private overlaps(a: AABB, b: AABB): boolean {
@@ -133,12 +140,30 @@ export class Planner {
 
   // ————— dodawanie / usuwanie / duplikowanie —————
 
-  addProduct(product: ProductDef, color?: number, x = 0, z = 0, ry = 0): PlacedItem {
+  /** Skaluje model do efektywnego gabarytu wariantu (względem rozmiaru bazowego). */
+  private applyVariantScale(item: PlacedItem): void {
+    const [bw, bh, bd] = item.product.size;
+    const [w, h, d] = item.size;
+    item.group.scale.set(w / bw, h / bh, d / bd);
+  }
+
+  addProduct(product: ProductDef, color?: number, x = 0, z = 0, ry = 0, variantId?: string): PlacedItem {
     const col = color ?? product.colors[0];
+    const variant = getVariant(product, variantId);
     const group = instantiate(product.model, col);
     group.position.set(x, 0, z);
     group.rotation.y = ry;
-    const item: PlacedItem = { uid: ++UID, product, color: col, group, overlap: false };
+    const item: PlacedItem = {
+      uid: ++UID,
+      product,
+      color: col,
+      group,
+      overlap: false,
+      size: effectiveSize(product, variant?.id),
+      price: effectivePrice(product, variant?.id),
+      variant: variant?.id,
+    };
+    this.applyVariantScale(item);
     group.userData.item = item;
     this.sm.scene.add(group);
     this.items.push(item);
@@ -163,7 +188,7 @@ export class Planner {
     const ry = item.group.rotation.y;
     const sx = item.group.position.x;
     const sz = item.group.position.z;
-    if (!this.collidesBox(this.aabbAt(item.product, sx, sz, ry), obstacles)) return;
+    if (!this.collidesBox(this.boxOf(item, sx, sz, ry), obstacles)) return;
 
     const step = 0.5;
     for (let r = 1; r <= 10; r++) {
@@ -173,11 +198,11 @@ export class Planner {
           const nx = sx + dx * step;
           const nz = sz + dz * step;
           const b = this.room.bounds;
-          const half = this.aabbAt(item.product, 0, 0, ry);
+          const half = this.boxOf(item, 0, 0, ry);
           const hx = (half.maxX - half.minX) / 2;
           const hz = (half.maxZ - half.minZ) / 2;
           if (nx < b.minX + hx || nx > b.maxX - hx || nz < b.minZ + hz || nz > b.maxZ - hz) continue;
-          if (!this.collidesBox(this.aabbAt(item.product, nx, nz, ry), obstacles)) {
+          if (!this.collidesBox(this.boxOf(item, nx, nz, ry), obstacles)) {
             item.group.position.set(nx, 0, nz);
             return;
           }
@@ -205,7 +230,7 @@ export class Planner {
   /** Ustawia mebel na aktualnie wybranej ścianie (wg rotacji) i wysokości montażu. */
   private placeOnWall(item: PlacedItem, alongX: number, alongZ: number): void {
     const b = this.room.bounds;
-    const [w, , d] = item.product.size;
+    const [w, , d] = item.size;
     const mh = item.product.mountHeight ?? 1.5;
     const off = d / 2 + 0.02;
     const p = item.group.position;
@@ -231,7 +256,7 @@ export class Planner {
     const obstacles = this.otherSolidBoxes(item);
     if (!this.collidesBox(this.aabbOf(item), obstacles)) return;
     const b = this.room.bounds;
-    const [w] = item.product.size;
+    const [w] = item.size;
     const ry = item.group.rotation.y;
     const backWall = Math.abs(ry) < 0.1;
     const start = backWall ? item.group.position.x : item.group.position.z;
@@ -255,7 +280,32 @@ export class Planner {
   duplicateSelected(): void {
     const s = this.selected;
     if (!s) return;
-    this.addProduct(s.product, s.color, s.group.position.x + 0.4, s.group.position.z + 0.4, s.group.rotation.y);
+    this.addProduct(s.product, s.color, s.group.position.x + 0.4, s.group.position.z + 0.4, s.group.rotation.y, s.variant);
+  }
+
+  /** Zmienia wariant rozmiarowy zaznaczonego mebla (skaluje model, aktualizuje cenę/kolizje). */
+  setSelectedVariant(variantId: string): void {
+    const item = this.selected;
+    if (!item || !item.product.variants) return;
+    const v = getVariant(item.product, variantId);
+    if (!v) return;
+    item.variant = v.id;
+    item.size = v.size;
+    item.price = v.price;
+    this.applyVariantScale(item);
+    if (this.isWall(item)) {
+      this.placeOnWall(item, item.group.position.x, item.group.position.z);
+      this.resolveWallSpawn(item);
+    } else {
+      this.clampToRoom(item);
+      this.resolveSpawnPosition(item);
+    }
+    this.selectionBox.setFromObject(item.group);
+    this.updateCollisions();
+    this.onSelect(item); // odśwież panel (wymiary/cena/wybór)
+    this.onTransform();
+    this.onChange();
+    this.onCommit();
   }
 
   deleteSelected(): void {
@@ -338,11 +388,11 @@ export class Planner {
       }
     } else {
       const ry = item.group.rotation.y;
-      const { hx, hz } = this.halfExtents(item.product, ry);
+      const { hx, hz } = this.halfExtentsOf(item, ry);
       const b = this.room.bounds;
       const cx = THREE.MathUtils.clamp(item.group.position.x + dx * step, b.minX + hx, b.maxX - hx);
       const cz = THREE.MathUtils.clamp(item.group.position.z + dz * step, b.minZ + hz, b.maxZ - hz);
-      if (this.collidesBox(this.aabbAt(item.product, cx, cz, ry), this.otherSolidBoxes(item))) return;
+      if (this.collidesBox(this.boxOf(item, cx, cz, ry), this.otherSolidBoxes(item))) return;
       item.group.position.x = cx;
       item.group.position.z = cz;
     }
@@ -441,7 +491,7 @@ export class Planner {
       snapZ = m.sz;
     }
     // ogranicz do wnętrza pokoju
-    const { hx, hz } = this.halfExtents(item.product, ry);
+    const { hx, hz } = this.halfExtentsOf(item, ry);
     const b = this.room.bounds;
     nx = THREE.MathUtils.clamp(nx, b.minX + hx, b.maxX - hx);
     nz = THREE.MathUtils.clamp(nz, b.minZ + hz, b.maxZ - hz);
@@ -453,7 +503,7 @@ export class Planner {
       item.group.position.set(nx, 0, nz);
     } else {
       // blokada kolizji z rozdzieleniem osi (ślizganie po przeszkodzie)
-      const free = (x: number, z: number) => !this.collidesBox(this.aabbAt(item.product, x, z, ry), this.dragObstacles);
+      const free = (x: number, z: number) => !this.collidesBox(this.boxOf(item, x, z, ry), this.dragObstacles);
       if (free(nx, nz)) item.group.position.set(nx, 0, nz);
       else if (free(nx, curZ)) item.group.position.x = nx;
       else if (free(curX, nz)) item.group.position.z = nz;
@@ -476,8 +526,8 @@ export class Planner {
 
   // ————— granice / kolizje —————
 
-  private halfExtents(product: ProductDef, ry: number): { hx: number; hz: number } {
-    const [w, , d] = product.size;
+  private halfExtentsOf(item: PlacedItem, ry: number): { hx: number; hz: number } {
+    const [w, , d] = item.size;
     const c = Math.abs(Math.cos(ry));
     const s = Math.abs(Math.sin(ry));
     return { hx: (c * w + s * d) / 2, hz: (s * w + c * d) / 2 };
@@ -486,7 +536,7 @@ export class Planner {
   /** Magnetyczne wyrównanie do krawędzi/środków sąsiadów oraz do ścian. */
   private magnetSnap(item: PlacedItem, x: number, z: number, ry: number): { x: number; z: number; sx: boolean; sz: boolean } {
     const thr = 0.16;
-    const { hx, hz } = this.halfExtents(item.product, ry);
+    const { hx, hz } = this.halfExtentsOf(item, ry);
     const b = this.room.bounds;
     const xt: number[] = [b.minX + hx, b.maxX - hx];
     const zt: number[] = [b.minZ + hz, b.maxZ - hz];
@@ -520,9 +570,10 @@ export class Planner {
     this.guideZ.visible = false;
   }
 
-  /** Zaznacza pierwszy mebel danego produktu i centruje na nim kamerę. */
-  focusProduct(productId: string): void {
-    const item = this.items.find((i) => i.product.id === productId);
+  /** Zaznacza pierwszy mebel danego produktu (opcjonalnie wariantu) i centruje kamerę. */
+  focusProduct(productId: string, variant?: string): void {
+    const match = (i: PlacedItem) => i.product.id === productId && (variant === undefined || (i.variant ?? '') === variant);
+    const item = this.items.find(match);
     if (!item) return;
     this.select(item);
     const center = new THREE.Vector3();
@@ -530,11 +581,12 @@ export class Planner {
     this.sm.focusOn(center);
   }
 
-  /** Usuwa jedną (ostatnio dodaną) sztukę danego produktu. */
-  removeOneOfProduct(productId: string): void {
+  /** Usuwa jedną (ostatnio dodaną) sztukę danego produktu (opcjonalnie konkretnego wariantu). */
+  removeOneOfProduct(productId: string, variant?: string): void {
     for (let i = this.items.length - 1; i >= 0; i--) {
-      if (this.items[i].product.id === productId) {
-        this.remove(this.items[i]);
+      const it = this.items[i];
+      if (it.product.id === productId && (variant === undefined || (it.variant ?? '') === variant)) {
+        this.remove(it);
         return;
       }
     }
@@ -546,7 +598,7 @@ export class Planner {
       this.placeOnWall(item, item.group.position.x, item.group.position.z);
       return;
     }
-    const { hx, hz } = this.halfExtents(item.product, item.group.rotation.y);
+    const { hx, hz } = this.halfExtentsOf(item, item.group.rotation.y);
     const b = this.room.bounds;
     const p = item.group.position;
     p.x = THREE.MathUtils.clamp(p.x, b.minX + hx, b.maxX - hx);
@@ -591,7 +643,7 @@ export class Planner {
     if (!it) return null;
     const b = this.room.bounds;
     const box = this.aabbOf(it);
-    const [w, h, d] = it.product.size;
+    const [w, h, d] = it.size;
     return {
       name: it.product.name,
       w, d, h,
@@ -603,13 +655,13 @@ export class Planner {
   }
 
   /** Dodaje mebel w miejscu wskazanym na ekranie (drag&drop z katalogu). */
-  addProductAtScreen(product: ProductDef, color: number | undefined, clientX: number, clientY: number): void {
+  addProductAtScreen(product: ProductDef, color: number | undefined, clientX: number, clientY: number, variantId?: string): void {
     const rect = this.sm.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.sm.camera);
     const hit = this.floorPoint();
-    this.addProduct(product, color, hit ? hit.x : 0, hit ? hit.z : 0);
+    this.addProduct(product, color, hit ? hit.x : 0, hit ? hit.z : 0, 0, variantId);
   }
 
   // ————— zapis / odczyt —————
@@ -621,6 +673,7 @@ export class Planner {
       z: +i.group.position.z.toFixed(3),
       ry: +i.group.rotation.y.toFixed(4),
       color: i.color,
+      variant: i.variant,
     }));
   }
 
@@ -629,11 +682,22 @@ export class Planner {
     for (const st of states) {
       const product = getProduct(st.productId);
       if (!product) continue;
+      const variant = getVariant(product, st.variant);
       const group = instantiate(product.model, st.color);
       const y = product.mount === 'wall' ? (product.mountHeight ?? 1.5) : 0;
       group.position.set(st.x, y, st.z);
       group.rotation.y = st.ry;
-      const item: PlacedItem = { uid: ++UID, product, color: st.color, group, overlap: false };
+      const item: PlacedItem = {
+        uid: ++UID,
+        product,
+        color: st.color,
+        group,
+        overlap: false,
+        size: effectiveSize(product, variant?.id),
+        price: effectivePrice(product, variant?.id),
+        variant: variant?.id,
+      };
+      this.applyVariantScale(item);
       group.userData.item = item;
       this.sm.scene.add(group);
       this.items.push(item);
