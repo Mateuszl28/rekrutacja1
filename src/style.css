@@ -183,6 +183,14 @@ aside.cart { border-left: 1px solid var(--line); }
 }
 .cat-sort:focus { border-color: var(--accent-2); }
 
+.price-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
+.price-chips .chip {
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer; transition: all 0.12s;
+}
+.price-chips .chip:hover { border-color: var(--accent-2); color: var(--text); }
+.price-chips .chip.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 600; }
+
 .cards { padding: 4px 12px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 
 /* —————————— KONFIGURACJA POKOJU —————————— */

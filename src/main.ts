@@ -3,7 +3,7 @@ import { SceneManager } from './scene/SceneManager';
 import { Room, ROOM_LIMITS } from './scene/Room';
 import { Planner } from './scene/Planner';
 import { preloadModels } from './furniture/loader';
-import { renderThumbnails } from './furniture/thumbnails';
+import { renderThumbnails, renderThumbnail } from './furniture/thumbnails';
 import { api, type OrderPayloadItem, type OrderSummary } from './api';
 import { PRODUCTS, getProduct, getVariant, effectiveSize, effectivePrice } from './data/products';
 import { TEMPLATES } from './data/templates';
@@ -79,6 +79,12 @@ app.innerHTML = `
           <option value="price-desc">Cena ↓</option>
           <option value="name">Nazwa A–Z</option>
         </select>
+      </div>
+      <div class="price-chips" id="price-chips">
+        <button class="chip active" data-price="all">Każda cena</button>
+        <button class="chip" data-price="0-500">do 500 zł</button>
+        <button class="chip" data-price="500-1500">500–1500 zł</button>
+        <button class="chip" data-price="1500-">1500+ zł</button>
       </div>
       <div class="cards" id="cards"></div>
       <div class="room-ctrl">
@@ -283,18 +289,31 @@ const chosenVariant = new Map<string, string>();
 let currentCat: RoomKind = 'living';
 let searchQuery = '';
 let sortMode = 'default';
+let priceFilter = 'all';
 let thumbs: Map<string, string> | null = null;
+const thumbCache = new Map<string, string>(); // klucz `${id}|${color}` — miniatury w wybranym kolorze
+
+function inPriceRange(price: number): boolean {
+  if (priceFilter === '0-500') return price < 500;
+  if (priceFilter === '500-1500') return price >= 500 && price <= 1500;
+  if (priceFilter === '1500-') return price > 1500;
+  return true;
+}
 
 function renderCatalog(cat: RoomKind): void {
   const q = searchQuery.trim().toLowerCase();
   const list = PRODUCTS.filter(
-    (p) => p.category === cat && (!q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+    (p) =>
+      p.category === cat &&
+      (!q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)) &&
+      inPriceRange(effectivePrice(p, chosenVariant.get(p.id)))
   );
   if (sortMode === 'price-asc') list.sort((a, b) => a.price - b.price);
   else if (sortMode === 'price-desc') list.sort((a, b) => b.price - a.price);
   else if (sortMode === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   if (list.length === 0) {
-    cardsEl.innerHTML = `<div class="cart-empty">Brak mebli dla „${searchQuery}”.</div>`;
+    const why = searchQuery ? `dla „${searchQuery}”` : 'dla wybranych filtrów';
+    cardsEl.innerHTML = `<div class="cart-empty">Brak mebli ${why}.</div>`;
     return;
   }
   cardsEl.innerHTML = list
@@ -307,7 +326,7 @@ function renderCatalog(cat: RoomKind): void {
               style="background:${hex(c)};${c === active ? 'outline:2px solid var(--accent);outline-offset:1px;' : ''}"></span>`
         )
         .join('');
-      const thumb = thumbs?.get(p.id);
+      const thumb = thumbCache.get(`${p.id}|${active}`) ?? thumbs?.get(p.id);
       const vId = chosenVariant.get(p.id);
       const size = effectiveSize(p, vId);
       const price = effectivePrice(p, vId);
@@ -340,7 +359,12 @@ cardsEl.addEventListener('click', (e) => {
   const product = PRODUCTS.find((p) => p.id === card.dataset.id)!;
   const sw = target.closest<HTMLElement>('.swatch');
   if (sw) {
-    chosenColor.set(product.id, Number(sw.dataset.color));
+    const color = Number(sw.dataset.color);
+    chosenColor.set(product.id, color);
+    const key = `${product.id}|${color}`;
+    if (!thumbCache.has(key)) {
+      try { thumbCache.set(key, renderThumbnail(product, color)); } catch { /* WebGL niedostępny — zostaw domyślną */ }
+    }
     renderCatalog(currentCat);
     return;
   }
@@ -383,6 +407,14 @@ $<HTMLInputElement>('#cat-search').addEventListener('input', (e) => {
 });
 $<HTMLSelectElement>('#cat-sort').addEventListener('change', (e) => {
   sortMode = (e.target as HTMLSelectElement).value;
+  renderCatalog(currentCat);
+});
+const priceChips = $<HTMLDivElement>('#price-chips');
+priceChips.addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+  if (!btn) return;
+  priceFilter = btn.dataset.price ?? 'all';
+  priceChips.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c === btn));
   renderCatalog(currentCat);
 });
 

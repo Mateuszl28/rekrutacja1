@@ -38,7 +38,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🚀 **Onboarding** — ekran powitalny przy pierwszym wejściu i modal pomocy ze skrótami (❓).
 - 📱 **Responsywność** — na wąskich ekranach katalog i koszyk działają jako wysuwane panele (dotyk).
 - 🛠️ **Panel obsługi zamówień** — podgląd zamówień z danymi klienta i dostawy, zmiana statusu oraz **statystyki sprzedaży** (liczba, obrót, średnia, rozkład statusów, top produkty).
-- 🔎 **Sortowanie katalogu** (cena / nazwa) obok wyszukiwarki.
+- 🔎 **Sortowanie katalogu** (cena / nazwa) obok wyszukiwarki, **filtr cen** (przedziały) i **miniatury reagujące na wybór koloru** (klik próbki przerenderowuje model w danym kolorze).
 - 📏 **HUD wymiarów** — dla zaznaczonego mebla pokazuje gabaryt i odległości od ścian (aktualizowane na żywo przy przeciąganiu).
 - 📐 **Prowadnice wyrównania** — podczas przeciągania pokazują się linie, gdy mebel wyrównuje się do sąsiada lub ściany.
 - 💾 **Zapis / odczyt** projektu i **zrzut PNG** aranżacji.
