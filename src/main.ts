@@ -4,6 +4,7 @@ import { Room, ROOM_LIMITS } from './scene/Room';
 import { Planner } from './scene/Planner';
 import { preloadModels } from './furniture/loader';
 import { renderThumbnails, renderThumbnail } from './furniture/thumbnails';
+import { ProductPreview } from './furniture/preview';
 import { api, type OrderPayloadItem, type OrderSummary } from './api';
 import { PRODUCTS, getProduct, getVariant, effectiveSize, effectivePrice } from './data/products';
 import { TEMPLATES } from './data/templates';
@@ -139,6 +140,27 @@ app.innerHTML = `
     <div class="modal">
       <div class="modal-head"><span>✨ Gotowe aranżacje</span><button class="modal-close" id="templates-close">✕</button></div>
       <div class="modal-body" id="templates-body"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="product-modal">
+    <div class="modal product-modal">
+      <div class="modal-head"><span id="pm-title">Produkt</span><button class="modal-close" id="pm-close">✕</button></div>
+      <div class="pm-body">
+        <div class="pm-preview">
+          <canvas id="pm-canvas"></canvas>
+          <div class="pm-hint">↔ przeciągnij, aby obrócić</div>
+        </div>
+        <div class="pm-info">
+          <p class="pm-desc" id="pm-desc"></p>
+          <div class="pm-dims" id="pm-dims"></div>
+          <div id="pm-variant-wrap"></div>
+          <div class="pm-colors" id="pm-colors"></div>
+          <div class="pm-foot">
+            <span class="pm-price" id="pm-price"></span>
+            <button class="checkout" id="pm-add">Dodaj do projektu +</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="modal-overlay" id="checkout-modal">
@@ -339,7 +361,10 @@ function renderCatalog(cat: RoomKind): void {
         : '';
       return `
         <div class="card" draggable="true" data-id="${p.id}">
-          ${thumb ? `<img class="thumb" src="${thumb}" alt="${p.name}" draggable="false">` : ''}
+          <div class="thumb-wrap">
+            ${thumb ? `<img class="thumb" src="${thumb}" alt="${p.name}" draggable="false">` : '<div class="thumb thumb-ph"></div>'}
+            <button class="qv-btn" data-qv title="Szybki podgląd">⤢</button>
+          </div>
           <div class="row"><span class="name">${p.name}</span><span class="price">${zl.format(price)}</span></div>
           <div class="desc">${p.description}</div>
           ${variantSel ? `<div class="variant-row">${variantSel}</div>` : ''}
@@ -359,6 +384,7 @@ cardsEl.addEventListener('click', (e) => {
   if (!card) return;
   if (target.closest('.variant-sel')) return; // interakcja z selektorem wariantu
   const product = PRODUCTS.find((p) => p.id === card.dataset.id)!;
+  if (target.closest('[data-qv]')) { openProduct(product); return; }
   const sw = target.closest<HTMLElement>('.swatch');
   if (sw) {
     const color = Number(sw.dataset.color);
@@ -419,6 +445,82 @@ priceChips.addEventListener('click', (e) => {
   priceChips.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c === btn));
   renderCatalog(currentCat);
 });
+
+// —————————————————————— SZYBKI PODGLĄD PRODUKTU ——————————————————————
+const productModal = $<HTMLDivElement>('#product-modal');
+const pmCanvas = $<HTMLCanvasElement>('#pm-canvas');
+const pmTitle = $<HTMLSpanElement>('#pm-title');
+const pmDesc = $<HTMLParagraphElement>('#pm-desc');
+const pmDims = $<HTMLDivElement>('#pm-dims');
+const pmVariantWrap = $<HTMLDivElement>('#pm-variant-wrap');
+const pmColorsEl = $<HTMLDivElement>('#pm-colors');
+const pmPrice = $<HTMLSpanElement>('#pm-price');
+let preview: ProductPreview | null = null;
+let pmProduct: ProductDef | null = null;
+let pmColor = 0xffffff;
+let pmVariant: string | undefined;
+
+function renderPmInfo(): void {
+  if (!pmProduct) return;
+  const size = effectiveSize(pmProduct, pmVariant);
+  pmDims.textContent = `Wymiary: ${size[0]}×${size[2]}×${size[1]} m (szer.×gł.×wys.)`;
+  pmPrice.textContent = zl.format(effectivePrice(pmProduct, pmVariant));
+  pmVariantWrap.innerHTML = pmProduct.variants
+    ? `<label class="pm-vlabel">Rozmiar <select id="pm-variant">${pmProduct.variants
+        .map((v) => `<option value="${v.id}"${v.id === pmVariant ? ' selected' : ''}>${v.label} · ${zl.format(v.price)}</option>`)
+        .join('')}</select></label>`
+    : '';
+  pmColorsEl.innerHTML =
+    (pmProduct.colors.length > 1 ? '<span class="pm-clabel">Kolor</span>' : '') +
+    pmProduct.colors
+      .map((c) => `<span class="swatch ${c === pmColor ? 'active' : ''}" data-color="${c}" style="background:${hex(c)}" title="Kolor"></span>`)
+      .join('');
+}
+
+function openProduct(product: ProductDef): void {
+  pmProduct = product;
+  pmColor = chosenColor.get(product.id) ?? product.colors[0];
+  pmVariant = chosenVariant.get(product.id) ?? product.variants?.[0].id;
+  pmTitle.textContent = product.name;
+  pmDesc.textContent = product.description;
+  renderPmInfo();
+  if (!preview) preview = new ProductPreview(pmCanvas);
+  preview.setProduct(product, pmColor, pmVariant);
+  productModal.classList.add('show');
+  requestAnimationFrame(() => { preview!.resize(); preview!.start(); });
+}
+
+function closeProduct(): void {
+  productModal.classList.remove('show');
+  preview?.stop();
+}
+
+pmVariantWrap.addEventListener('change', (e) => {
+  const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('#pm-variant');
+  if (!sel) return;
+  pmVariant = sel.value;
+  preview?.setVariant(pmVariant);
+  renderPmInfo();
+});
+pmColorsEl.addEventListener('click', (e) => {
+  const sw = (e.target as HTMLElement).closest<HTMLElement>('.swatch');
+  if (!sw) return;
+  pmColor = Number(sw.dataset.color);
+  preview?.setColor(pmColor);
+  renderPmInfo();
+});
+$<HTMLButtonElement>('#pm-add').addEventListener('click', () => {
+  if (!pmProduct) return;
+  chosenColor.set(pmProduct.id, pmColor);
+  if (pmVariant) chosenVariant.set(pmProduct.id, pmVariant);
+  planner.addProduct(pmProduct, pmColor, 0, 0, 0, pmVariant);
+  renderCatalog(currentCat);
+  closeProduct();
+  toast(`➕ Dodano „${pmProduct.name}”`);
+});
+$<HTMLButtonElement>('#pm-close').addEventListener('click', closeProduct);
+productModal.addEventListener('click', (e) => { if (e.target === productModal) closeProduct(); });
+window.addEventListener('resize', () => { if (productModal.classList.contains('show')) preview?.resize(); });
 
 // zakładki katalogu
 const catTabs = $<HTMLDivElement>('#cat-tabs');
@@ -1388,6 +1490,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowDown') { e.preventDefault(); planner.nudgeSelected(0, 1); }
   else if (e.key === 'Escape') {
     if (welcomeModal.classList.contains('show')) closeWelcome();
+    else if (productModal.classList.contains('show')) closeProduct();
     else if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
     else if (helpModal.classList.contains('show')) helpModal.classList.remove('show');
     else if (adminModal.classList.contains('show')) adminModal.classList.remove('show');

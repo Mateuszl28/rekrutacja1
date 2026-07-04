@@ -267,6 +267,36 @@ aside.cart { border-left: 1px solid var(--line); }
 .card .swatches { display: flex; gap: 4px; }
 .swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.4); }
 .card .add { color: var(--accent-2); font-size: 12px; font-weight: 600; }
+.thumb-wrap { position: relative; }
+.thumb-ph { width: 100%; height: 100px; }
+.qv-btn {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+  border: 1px solid var(--hud-line); background: var(--hud-bg); color: var(--hud-text);
+  border-radius: 8px; cursor: pointer; font-size: 14px; opacity: 0; transform: translateY(-2px);
+  transition: opacity 0.14s, transform 0.14s; backdrop-filter: blur(4px);
+}
+.card:hover .qv-btn { opacity: 1; transform: none; }
+.qv-btn:hover { border-color: var(--accent-2); }
+
+/* Szybki podgląd produktu */
+.product-modal { max-width: 720px; width: 92vw; }
+.pm-body { display: grid; grid-template-columns: 1.05fr 1fr; gap: 20px; padding: 18px; }
+.pm-preview { position: relative; background: var(--thumb-bg, radial-gradient(circle at 50% 40%, #2a323e, #171d26 75%)); border: 1px solid var(--line); border-radius: 12px; aspect-ratio: 4 / 3; overflow: hidden; }
+.pm-preview canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.pm-preview canvas:active { cursor: grabbing; }
+.pm-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--hud-muted); background: var(--hud-bg); border: 1px solid var(--hud-line); padding: 3px 10px; border-radius: 999px; pointer-events: none; }
+.pm-info { display: flex; flex-direction: column; gap: 12px; }
+.pm-desc { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.pm-dims { font-size: 13px; color: var(--text); font-weight: 500; }
+.pm-vlabel { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.pm-vlabel select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.pm-colors { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pm-clabel { font-size: 12px; color: var(--muted); }
+.pm-colors .swatch { width: 24px; height: 24px; cursor: pointer; }
+.pm-colors .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pm-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px; }
+.pm-price { font-size: 22px; font-weight: 700; color: var(--text); }
+@media (max-width: 640px) { .pm-body { grid-template-columns: 1fr; } }
 .variant-row { margin: 0 0 8px; }
 .variant-sel, .sel-variant {
   background: var(--panel); color: var(--text); border: 1px solid var(--line);
