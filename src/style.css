@@ -473,6 +473,16 @@ aside.cart { border-left: 1px solid var(--line); }
 .delivery .radio { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
 .form-err { color: var(--danger); font-size: 13px; margin-top: 10px; font-weight: 600; }
 
+.promo-row { display: flex; gap: 6px; align-items: stretch; }
+.promo-row input { flex: 1; }
+.promo-row .btn { white-space: nowrap; }
+.co-summary { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sum-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); padding: 3px 0; }
+.sum-row.discount { color: var(--ok); }
+.sum-row.total { color: var(--text); font-weight: 700; font-size: 16px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; }
+.sum-row.total span:last-child { color: var(--accent); }
+.admin-foot { display: flex; gap: 8px; justify-content: flex-end; }
+
 .co-confirm { text-align: center; padding: 12px 8px; }
 .co-check { font-size: 46px; }
 .co-confirm h3 { margin: 6px 0; }

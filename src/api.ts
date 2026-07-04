@@ -22,12 +22,19 @@ export interface Customer {
   phone: string;
 }
 
+export interface Delivery {
+  method: string;
+  address: string;
+  cost?: number;
+  promo?: string;
+}
+
 export interface OrderPayload {
   items: OrderPayloadItem[];
   total: number;
   room: RoomKind;
   customer?: Customer;
-  delivery?: { method: string; address: string };
+  delivery?: Delivery;
 }
 
 export interface Snapshot {
@@ -61,7 +68,7 @@ export interface OrderSummary {
   count: number;
   status?: string;
   customer?: Customer | null;
-  delivery?: { method: string; address: string } | null;
+  delivery?: Delivery | null;
   items?: OrderPayloadItem[];
 }
 

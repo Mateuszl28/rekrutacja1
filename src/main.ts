@@ -147,11 +147,17 @@ app.innerHTML = `
             <label>Telefon<input id="co-phone" type="tel" autocomplete="tel" placeholder="600 000 000"></label>
             <div class="fg-full delivery">
               <span class="ctrl-label">Dostawa</span>
-              <label class="radio"><input type="radio" name="co-del" value="Kurier" checked> 🚚 Kurier (0 zł)</label>
-              <label class="radio"><input type="radio" name="co-del" value="Odbiór osobisty"> 🏬 Odbiór osobisty</label>
+              <label class="radio"><input type="radio" name="co-del" value="Kurier" data-cost="19" checked> 🚚 Kurier — 19 zł</label>
+              <label class="radio"><input type="radio" name="co-del" value="Kurier ekspres" data-cost="39"> ⚡ Ekspres 24h — 39 zł</label>
+              <label class="radio"><input type="radio" name="co-del" value="Odbiór osobisty" data-cost="0"> 🏬 Odbiór — 0 zł</label>
             </div>
             <label class="fg-full" id="co-addr-wrap">Adres dostawy *<input id="co-addr" type="text" autocomplete="street-address" placeholder="ul. Przykładowa 1, 00-000 Miasto"></label>
+            <div class="fg-full promo-row">
+              <input id="co-promo" type="text" placeholder="Kod rabatowy (MEBLE10, GRATIS)">
+              <button class="btn" id="co-promo-apply" type="button">Zastosuj</button>
+            </div>
           </div>
+          <div class="co-summary" id="co-summary"></div>
           <div class="form-err" id="co-err" hidden></div>
         </div>
         <div class="cstep" id="cstep-3" hidden></div>
@@ -197,6 +203,10 @@ app.innerHTML = `
     <div class="modal modal-wide">
       <div class="modal-head"><span>🛠️ Panel obsługi zamówień</span><button class="modal-close" id="admin-close">✕</button></div>
       <div class="modal-body" id="admin-body"></div>
+      <div class="modal-foot admin-foot">
+        <button class="btn" id="admin-refresh">↻ Odśwież</button>
+        <button class="btn" id="admin-csv">⬇️ Eksport CSV</button>
+      </div>
     </div>
   </div>
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
@@ -646,13 +656,48 @@ const totalOf = () => planner.items.reduce((s, i) => s + i.product.price, 0);
 function openCheckout(): void {
   if (!planner.items.length) { toast('Dodaj meble do projektu, aby zamówić'); return; }
   if (planner.hasOverlaps()) { toast('⚠ Popraw kolizje mebli przed zamówieniem'); return; }
+  promoCode = null;
+  const pin = document.querySelector<HTMLInputElement>('#co-promo');
+  if (pin) pin.value = '';
   gotoStep(1);
   checkoutModal.classList.add('show');
 }
 
+const PROMOS: Record<string, { label: string; percent?: number; freeDelivery?: boolean }> = {
+  MEBLE10: { label: '−10% na meble', percent: 10 },
+  GRATIS: { label: 'darmowa dostawa', freeDelivery: true },
+};
+let promoCode: string | null = null;
+
+function selectedDelivery(): { method: string; cost: number } {
+  const el = document.querySelector('input[name="co-del"]:checked') as HTMLInputElement | null;
+  return { method: el?.value ?? 'Kurier', cost: Number(el?.dataset.cost ?? 19) };
+}
+
+function computeTotals() {
+  const subtotal = totalOf();
+  const { method, cost } = selectedDelivery();
+  const promo = promoCode ? PROMOS[promoCode] : undefined;
+  const discount = promo?.percent ? Math.round((subtotal * promo.percent) / 100) : 0;
+  const deliveryCost = promo?.freeDelivery ? 0 : cost;
+  const final = Math.max(0, subtotal + deliveryCost - discount);
+  return { subtotal, method, deliveryCost, discount, final };
+}
+
+function renderSummary(): void {
+  const t = computeTotals();
+  const promo = promoCode ? PROMOS[promoCode] : undefined;
+  $<HTMLDivElement>('#co-summary').innerHTML =
+    `<div class="sum-row"><span>Produkty</span><span>${zl.format(t.subtotal)}</span></div>
+     <div class="sum-row"><span>Dostawa (${t.method})</span><span>${t.deliveryCost === 0 ? 'gratis' : zl.format(t.deliveryCost)}</span></div>
+     ${t.discount ? `<div class="sum-row discount"><span>Rabat ${promo?.label ?? ''}</span><span>−${zl.format(t.discount)}</span></div>` : ''}
+     <div class="sum-row total"><span>Razem</span><span>${zl.format(t.final)}</span></div>`;
+}
+
 function updateAddrVisibility(): void {
-  const method = (document.querySelector('input[name="co-del"]:checked') as HTMLInputElement)?.value;
-  $<HTMLElement>('#co-addr-wrap').hidden = method !== 'Kurier';
+  const method = selectedDelivery().method;
+  $<HTMLElement>('#co-addr-wrap').hidden = method === 'Odbiór osobisty';
+  renderSummary();
 }
 
 function gotoStep(n: number): void {
@@ -688,34 +733,35 @@ async function submitOrder(): Promise<void> {
   const name = val('#co-name');
   const email = val('#co-email');
   const phone = val('#co-phone');
-  const method = (document.querySelector('input[name="co-del"]:checked') as HTMLInputElement)?.value || 'Kurier';
+  const { method } = selectedDelivery();
+  const needsAddr = method !== 'Odbiór osobisty';
   const address = val('#co-addr');
   const err = $<HTMLDivElement>('#co-err');
   const problems: string[] = [];
   if (name.length < 3) problems.push('imię i nazwisko');
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) problems.push('poprawny e-mail');
-  if (method === 'Kurier' && address.length < 5) problems.push('adres dostawy');
+  if (needsAddr && address.length < 5) problems.push('adres dostawy');
   if (problems.length) { err.hidden = false; err.textContent = 'Uzupełnij: ' + problems.join(', ') + '.'; return; }
   err.hidden = true;
 
   const submitBtn = $<HTMLButtonElement>('#co-submit');
   submitBtn.disabled = true;
   submitBtn.textContent = 'Wysyłanie…';
-  const total = totalOf();
+  const t = computeTotals();
   const res = await api.placeOrder({
     items: orderItems(),
-    total,
+    total: t.final,
     room: room.kind,
     customer: { name, email, phone },
-    delivery: { method, address: method === 'Kurier' ? address : '—' },
+    delivery: { method, address: needsAddr ? address : '—', cost: t.deliveryCost, promo: promoCode ?? undefined },
   });
   refreshApiStatus();
   const no = res ? `#${res.orderNo}` : '(offline)';
   $<HTMLDivElement>('#cstep-3').innerHTML =
     `<div class="co-confirm"><div class="co-check">✅</div><h3>Dziękujemy, ${escHtml(name)}!</h3>
     <p>Zamówienie <b>${no}</b> zostało przyjęte.</p>
-    <p class="co-sub">${escHtml(method)}${method === 'Kurier' ? ' → ' + escHtml(address) : ''}<br>Potwierdzenie wyślemy na <b>${escHtml(email)}</b>.</p>
-    <div class="co-total"><span>Wartość</span><b>${zl.format(total)}</b></div></div>`;
+    <p class="co-sub">${escHtml(method)}${needsAddr ? ' → ' + escHtml(address) : ''}${t.discount ? '<br>Rabat: −' + zl.format(t.discount) : ''}<br>Potwierdzenie wyślemy na <b>${escHtml(email)}</b>.</p>
+    <div class="co-total"><span>Do zapłaty</span><b>${zl.format(t.final)}</b></div></div>`;
   gotoStep(3);
 }
 
@@ -723,6 +769,13 @@ checkoutBtn.addEventListener('click', openCheckout);
 $<HTMLButtonElement>('#checkout-close').addEventListener('click', () => checkoutModal.classList.remove('show'));
 checkoutModal.addEventListener('click', (e) => { if (e.target === checkoutModal) checkoutModal.classList.remove('show'); });
 document.querySelectorAll('input[name="co-del"]').forEach((r) => r.addEventListener('change', updateAddrVisibility));
+$<HTMLButtonElement>('#co-promo-apply').addEventListener('click', () => {
+  const code = ($<HTMLInputElement>('#co-promo').value || '').trim().toUpperCase();
+  if (!code) { promoCode = null; renderSummary(); return; }
+  if (PROMOS[code]) { promoCode = code; toast(`✅ Kod „${code}" — ${PROMOS[code].label}`); }
+  else { promoCode = null; toast('❌ Nieprawidłowy kod rabatowy'); }
+  renderSummary();
+});
 
 async function refreshApiStatus(): Promise<void> {
   const el = $<HTMLSpanElement>('#api-status');
@@ -965,24 +1018,56 @@ function statsHtml(orders: OrderSummary[]): string {
   </div>`;
 }
 
+let adminOrders: OrderSummary[] = [];
+
 async function openAdmin(): Promise<void> {
   adminBody.innerHTML = '<div class="orders-empty">Ładowanie…</div>';
   adminModal.classList.add('show');
   const orders = await api.listOrders();
+  adminOrders = orders ?? [];
   if (!orders) { adminBody.innerHTML = '<div class="orders-empty">Backend offline. Uruchom „npm run dev:full".</div>'; return; }
   if (orders.length === 0) { adminBody.innerHTML = '<div class="orders-empty">Brak zamówień. Złóż pierwsze przez „Zamów aranżację".</div>'; return; }
   adminBody.innerHTML = statsHtml(orders) + orders.slice().reverse().map(renderAdminOrder).join('');
 }
 
+function ordersToCsv(orders: OrderSummary[]): string {
+  const head = ['Nr', 'Data', 'Status', 'Klient', 'E-mail', 'Telefon', 'Dostawa', 'Adres', 'Pozycje', 'Wartość'];
+  const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const rows = orders.map((o) =>
+    [o.orderNo, o.createdAt, o.status || 'nowe', o.customer?.name || '', o.customer?.email || '', o.customer?.phone || '',
+     o.delivery?.method || '', o.delivery?.address || '', (o.items || []).map((i) => `${i.qty}x ${i.name}`).join('; '), o.total]
+      .map(cell).join(',')
+  );
+  return [head.join(','), ...rows].join('\n');
+}
+
+function exportOrdersCsv(): void {
+  if (!adminOrders.length) { toast('Brak zamówień do eksportu'); return; }
+  const csv = '﻿' + ordersToCsv(adminOrders); // BOM → poprawne polskie znaki w Excelu
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'zamowienia.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('⬇️ Wyeksportowano CSV');
+}
+
 $<HTMLButtonElement>('#btn-admin').addEventListener('click', openAdmin);
 $<HTMLButtonElement>('#admin-close').addEventListener('click', () => adminModal.classList.remove('show'));
+$<HTMLButtonElement>('#admin-refresh').addEventListener('click', openAdmin);
+$<HTMLButtonElement>('#admin-csv').addEventListener('click', exportOrdersCsv);
 adminModal.addEventListener('click', (e) => { if (e.target === adminModal) adminModal.classList.remove('show'); });
 adminBody.addEventListener('change', async (e) => {
   const sel = e.target as HTMLSelectElement;
   if (!sel.dataset.no) return;
-  const r = await api.updateOrderStatus(Number(sel.dataset.no), sel.value);
-  if (r) { sel.className = `ao-status s-${statusKey(sel.value)}`; toast(`#${sel.dataset.no} → ${sel.value}`); }
-  else toast('Nie udało się zmienić statusu');
+  const no = Number(sel.dataset.no);
+  const r = await api.updateOrderStatus(no, sel.value);
+  if (r) {
+    sel.className = `ao-status s-${statusKey(sel.value)}`;
+    const local = adminOrders.find((o) => o.orderNo === no);
+    if (local) local.status = sel.value;
+    toast(`#${no} → ${sel.value}`);
+  } else toast('Nie udało się zmienić statusu');
 });
 
 // —————————————————————— POMOC ——————————————————————
