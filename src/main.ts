@@ -3,8 +3,10 @@ import { SceneManager } from './scene/SceneManager';
 import { Room, ROOM_LIMITS } from './scene/Room';
 import { Planner } from './scene/Planner';
 import { preloadModels } from './furniture/loader';
+import { renderThumbnails } from './furniture/thumbnails';
 import { api, type OrderPayloadItem, type OrderSummary } from './api';
-import { PRODUCTS } from './data/products';
+import { PRODUCTS, getProduct } from './data/products';
+import { TEMPLATES } from './data/templates';
 import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
 const STORAGE_KEY = 'meblelab3d-projekt';
@@ -37,8 +39,10 @@ app.innerHTML = `
       <button class="btn" id="btn-shot" title="Zapisz zrzut PNG">📸</button>
       <button class="btn" id="btn-save">💾 Zapisz</button>
       <button class="btn" id="btn-load">📂 Wczytaj</button>
+      <button class="btn" id="btn-templates" title="Gotowe aranżacje">✨ Aranżacje</button>
       <button class="btn" id="btn-projects" title="Moje projekty (backend)">📁 Projekty</button>
       <button class="btn" id="btn-orders" title="Historia zamówień (backend)">📋 Zamówienia</button>
+      <button class="btn" id="btn-print" title="Podsumowanie / wydruk PDF">🧾 PDF</button>
       <button class="btn danger" id="btn-clear">🗑️</button>
     </div>
   </header>
@@ -93,6 +97,12 @@ app.innerHTML = `
       <div class="modal-head"><span>📁 Moje projekty</span><button class="modal-close" id="projects-close">✕</button></div>
       <div class="modal-body" id="projects-body"></div>
       <div class="modal-foot"><button class="checkout" id="project-saveas">💾 Zapisz bieżący jako…</button></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="templates-modal">
+    <div class="modal">
+      <div class="modal-head"><span>✨ Gotowe aranżacje</span><button class="modal-close" id="templates-close">✕</button></div>
+      <div class="modal-body" id="templates-body"></div>
     </div>
   </div>
 `;
@@ -163,6 +173,7 @@ const cardsEl = $<HTMLDivElement>('#cards');
 const chosenColor = new Map<string, number>();
 let currentCat: RoomKind = 'living';
 let searchQuery = '';
+let thumbs: Map<string, string> | null = null;
 
 function renderCatalog(cat: RoomKind): void {
   const q = searchQuery.trim().toLowerCase();
@@ -183,8 +194,10 @@ function renderCatalog(cat: RoomKind): void {
               style="background:${hex(c)};${c === active ? 'outline:2px solid var(--accent);outline-offset:1px;' : ''}"></span>`
         )
         .join('');
+      const thumb = thumbs?.get(p.id);
       return `
         <div class="card" draggable="true" data-id="${p.id}">
+          ${thumb ? `<img class="thumb" src="${thumb}" alt="${p.name}" draggable="false">` : ''}
           <div class="row"><span class="name">${p.name}</span><span class="price">${zl.format(p.price)}</span></div>
           <div class="desc">${p.description}</div>
           <div class="meta">
@@ -629,6 +642,81 @@ $<HTMLButtonElement>('#project-saveas').addEventListener('click', async () => {
   else toast('Backend offline — nie zapisano');
 });
 
+// —————————————————————— GOTOWE ARANŻACJE (modal) ——————————————————————
+const templatesModal = $<HTMLDivElement>('#templates-modal');
+const templatesBody = $<HTMLDivElement>('#templates-body');
+templatesBody.innerHTML = TEMPLATES.map(
+  (t) => `
+    <div class="order-row tpl-row" data-tpl="${t.id}">
+      <div><div class="order-no">${t.name}</div><div class="order-meta">${t.description}</div></div>
+      <button class="btn" data-tpl="${t.id}">Wstaw →</button>
+    </div>`
+).join('');
+
+$<HTMLButtonElement>('#btn-templates').addEventListener('click', () => templatesModal.classList.add('show'));
+$<HTMLButtonElement>('#templates-close').addEventListener('click', () => templatesModal.classList.remove('show'));
+templatesModal.addEventListener('click', (e) => {
+  if (e.target === templatesModal) templatesModal.classList.remove('show');
+});
+templatesBody.addEventListener('click', (e) => {
+  const id = (e.target as HTMLElement).closest<HTMLElement>('[data-tpl]')?.dataset.tpl;
+  const t = TEMPLATES.find((x) => x.id === id);
+  if (!t) return;
+  const snap = {
+    room: t.room,
+    items: t.items.map((i) => ({ productId: i.productId, x: i.x, z: i.z, ry: i.ry, color: getProduct(i.productId)?.colors[0] ?? 0xcccccc })),
+  };
+  currentCat = t.room.kind;
+  applyState(snap);
+  renderCatalog(currentCat);
+  pushHistory();
+  templatesModal.classList.remove('show');
+  toast(`✨ Wstawiono aranżację „${t.name}”`);
+});
+
+// —————————————————————— WYDRUK / PDF ——————————————————————
+$<HTMLButtonElement>('#btn-print').addEventListener('click', () => {
+  const shot = sm.captureScreenshot();
+  const groups = new Map<string, { product: ProductDef; qty: number }>();
+  for (const it of planner.items) {
+    const g = groups.get(it.product.id) ?? { product: it.product, qty: 0 };
+    g.qty++;
+    groups.set(it.product.id, g);
+  }
+  const total = planner.items.reduce((s, i) => s + i.product.price, 0);
+  const rows = [...groups.values()]
+    .map(({ product, qty }) => `<tr><td>${product.name}</td><td class="c">${qty}</td><td class="r">${zl.format(product.price)}</td><td class="r">${zl.format(product.price * qty)}</td></tr>`)
+    .join('');
+  const roomName = room.kind === 'kitchen' ? 'Kuchnia' : 'Salon';
+  const date = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+  const w = window.open('', '_blank', 'width=900,height=1000');
+  if (!w) { toast('Zezwól na wyskakujące okna, aby wydrukować'); return; }
+  w.document.write(`<!doctype html><html lang="pl"><head><meta charset="utf-8">
+  <title>MebleLab 3D — podsumowanie aranżacji</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#1a2029;margin:36px;max-width:800px}
+    header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #ffb020;padding-bottom:12px;margin-bottom:20px}
+    h1{margin:0;font-size:22px}.sub{color:#666;font-size:13px}
+    img{width:100%;border-radius:10px;border:1px solid #ddd;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:9px 10px;border-bottom:1px solid #eee}
+    th{text-align:left;color:#888;font-size:12px;text-transform:uppercase}
+    td.c{text-align:center}td.r{text-align:right}
+    tfoot td{font-weight:700;font-size:16px;border-top:2px solid #333;border-bottom:none}
+    .meta{color:#666;font-size:13px;margin-bottom:16px}
+  </style></head><body>
+    <header><div><h1>🛋️ MebleLab 3D</h1><div class="sub">Podsumowanie aranżacji</div></div>
+    <div class="sub">${date}</div></header>
+    <div class="meta">Pomieszczenie: <b>${roomName}</b> ${room.width.toFixed(1)}×${room.depth.toFixed(1)} m (${room.area.toFixed(1)} m²) · pozycji: <b>${planner.items.length}</b></div>
+    <img src="${shot}" alt="Aranżacja">
+    <table><thead><tr><th>Produkt</th><th class="c">Ilość</th><th class="r">Cena</th><th class="r">Wartość</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4" style="color:#888">Brak mebli w projekcie.</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="3">Razem</td><td class="r">${zl.format(total)}</td></tr></tfoot></table>
+    <script>window.onload=()=>setTimeout(()=>window.print(),300)</script>
+  </body></html>`);
+  w.document.close();
+});
+
 // —————————————————————— SKRÓTY KLAWISZOWE ——————————————————————
 window.addEventListener('keydown', (e) => {
   // nie przechwytuj skrótów podczas pisania w polach tekstowych
@@ -646,6 +734,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') {
     if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
     else if (projectsModal.classList.contains('show')) projectsModal.classList.remove('show');
+    else if (templatesModal.classList.contains('show')) templatesModal.classList.remove('show');
     else planner.select(null);
   }
 });
@@ -678,6 +767,9 @@ planner.onChange();
     loadingText.textContent = 'Błąd ładowania modeli. Uruchom „npm run models”.';
     return;
   }
+  loadingText.textContent = 'Generowanie miniatur…';
+  thumbs = renderThumbnails(PRODUCTS);
+  renderCatalog(currentCat);
   loadingEl.classList.add('hide');
   if (localStorage.getItem(STORAGE_KEY)) loadProject();
   pushHistory(); // stan początkowy w historii
