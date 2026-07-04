@@ -9,6 +9,7 @@ import { api, type OrderPayloadItem, type OrderSummary } from './api';
 import { PRODUCTS, getProduct, getVariant, effectiveSize, effectivePrice } from './data/products';
 import { TEMPLATES } from './data/templates';
 import { SETS } from './data/sets';
+import { PROMOS, normalizePromo, groupCart, computeTotals as computePricing } from './data/pricing';
 import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
 const STORAGE_KEY = 'meblelab3d-projekt';
@@ -939,18 +940,11 @@ function itemLabel(product: ProductDef, variant?: string): string {
   return v ? `${product.name} · ${v.label}` : product.name;
 }
 
-interface CartGroup { product: ProductDef; variant?: string; name: string; price: number; qty: number; }
-
 /** Grupuje meble po produkcie i wariancie (różne warianty = osobne pozycje). */
-function cartGroups(): CartGroup[] {
-  const map = new Map<string, CartGroup>();
-  for (const it of planner.items) {
-    const key = `${it.product.id}|${it.variant ?? ''}`;
-    const g = map.get(key) ?? { product: it.product, variant: it.variant, name: itemLabel(it.product, it.variant), price: it.price, qty: 0 };
-    g.qty++;
-    map.set(key, g);
-  }
-  return [...map.values()];
+function cartGroups() {
+  return groupCart(
+    planner.items.map((it) => ({ productId: it.product.id, variant: it.variant, name: itemLabel(it.product, it.variant), price: it.price }))
+  );
 }
 
 planner.onChange = () => {
@@ -961,13 +955,13 @@ planner.onChange = () => {
   } else {
     cartItemsEl.innerHTML = groups
       .map(
-        ({ product, variant, name, price, qty }) => `
-        <div class="cart-item" data-id="${product.id}" data-variant="${variant ?? ''}" title="Kliknij, aby wyśrodkować w scenie">
+        ({ productId, variant, name, price, qty }) => `
+        <div class="cart-item" data-id="${productId}" data-variant="${variant ?? ''}" title="Kliknij, aby wyśrodkować w scenie">
           <div><div class="ci-name"><span class="qty-badge">${qty}×</span>${name}</div>
           <div class="ci-sub">${zl.format(price)} / szt.</div></div>
           <div class="ci-right">
             <span class="ci-price">${zl.format(price * qty)}</span>
-            <button class="ci-remove" data-remove="${product.id}" data-variant="${variant ?? ''}" title="Usuń jedną sztukę">−</button>
+            <button class="ci-remove" data-remove="${productId}" data-variant="${variant ?? ''}" title="Usuń jedną sztukę">−</button>
           </div>
         </div>`
       )
@@ -979,7 +973,7 @@ planner.onChange = () => {
 };
 
 function orderItems(): OrderPayloadItem[] {
-  return cartGroups().map((g) => ({ productId: g.product.id, name: g.name, price: g.price, qty: g.qty }));
+  return cartGroups().map((g) => ({ productId: g.productId, name: g.name, price: g.price, qty: g.qty }));
 }
 
 cartItemsEl.addEventListener('click', (e) => {
@@ -1023,10 +1017,6 @@ function openCheckout(): void {
   checkoutModal.classList.add('show');
 }
 
-const PROMOS: Record<string, { label: string; percent?: number; freeDelivery?: boolean }> = {
-  MEBLE10: { label: '−10% na meble', percent: 10 },
-  GRATIS: { label: 'darmowa dostawa', freeDelivery: true },
-};
 let promoCode: string | null = null;
 
 function selectedDelivery(): { method: string; cost: number } {
@@ -1035,13 +1025,9 @@ function selectedDelivery(): { method: string; cost: number } {
 }
 
 function computeTotals() {
-  const subtotal = totalOf();
   const { method, cost } = selectedDelivery();
-  const promo = promoCode ? PROMOS[promoCode] : undefined;
-  const discount = promo?.percent ? Math.round((subtotal * promo.percent) / 100) : 0;
-  const deliveryCost = promo?.freeDelivery ? 0 : cost;
-  const final = Math.max(0, subtotal + deliveryCost - discount);
-  return { subtotal, method, deliveryCost, discount, final };
+  const t = computePricing(totalOf(), cost, promoCode);
+  return { subtotal: t.subtotal, method, deliveryCost: t.deliveryCost, discount: t.discount, final: t.final };
 }
 
 function renderSummary(): void {
@@ -1131,9 +1117,10 @@ $<HTMLButtonElement>('#checkout-close').addEventListener('click', () => checkout
 checkoutModal.addEventListener('click', (e) => { if (e.target === checkoutModal) checkoutModal.classList.remove('show'); });
 document.querySelectorAll('input[name="co-del"]').forEach((r) => r.addEventListener('change', updateAddrVisibility));
 $<HTMLButtonElement>('#co-promo-apply').addEventListener('click', () => {
-  const code = ($<HTMLInputElement>('#co-promo').value || '').trim().toUpperCase();
-  if (!code) { promoCode = null; renderSummary(); return; }
-  if (PROMOS[code]) { promoCode = code; toast(`✅ Kod „${code}" — ${PROMOS[code].label}`); }
+  const raw = $<HTMLInputElement>('#co-promo').value || '';
+  if (!raw.trim()) { promoCode = null; renderSummary(); return; }
+  const code = normalizePromo(raw);
+  if (code) { promoCode = code; toast(`✅ Kod „${code}" — ${PROMOS[code].label}`); }
   else { promoCode = null; toast('❌ Nieprawidłowy kod rabatowy'); }
   renderSummary();
 });

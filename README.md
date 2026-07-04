@@ -80,6 +80,8 @@ Czysta logika domenowa jest odseparowana od warstwy 3D/DOM i pokryta testami (Vi
   wykrywanie kolizji (w tym rozdział meble podłogowe / wiszące). `Planner` korzysta
   z tego modułu, więc test geometrii = test rdzenia kolizji.
 - `src/data/products.ts` — warianty (rozmiar/cena), spójność `variants[0]` z bazą.
+- `src/data/pricing.ts` — grupowanie koszyka po produkcie+wariancie, kody rabatowe
+  (MEBLE10, GRATIS), podsumowanie (rabat %, darmowa dostawa, brak sumy < 0).
 - Integralność danych — elementy zestawów i aranżacji wskazują istniejące produkty
   i poprawne warianty.
 
