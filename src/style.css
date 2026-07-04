@@ -195,6 +195,12 @@ aside.cart { border-left: 1px solid var(--line); }
 .wall-colors { display: flex; flex-wrap: wrap; gap: 6px; }
 .wall-colors .swatch { width: 22px; height: 22px; cursor: pointer; }
 .wall-colors .swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.custom-color { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.custom-color input[type="color"] { width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+.custom-color input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.custom-color input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+.selpanel .sel-cc { margin: 0; }
+.selpanel .sel-cc input[type="color"] { width: 22px; height: 22px; }
 .card {
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -545,6 +551,12 @@ aside.cart { border-left: 1px solid var(--line); }
 .chart-track { height: 12px; background: var(--line); border-radius: 6px; }
 .chart-bar { display: block; height: 100%; background: var(--accent); border-radius: 6px; min-width: 4px; }
 .chart-val { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.chart-row { cursor: default; }
+.chart-row:hover .chart-bar { filter: brightness(1.18); }
+
+.admin-controls { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; }
+.admin-controls select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.admin-count { color: var(--muted); font-size: 12px; margin-left: auto; }
 
 .proj-actions { display: flex; gap: 6px; }
 .proj-actions .btn { padding: 6px 10px; font-size: 12px; }

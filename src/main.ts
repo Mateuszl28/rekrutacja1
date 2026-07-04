@@ -88,6 +88,7 @@ app.innerHTML = `
         <div class="area-info" id="area-info"></div>
         <div class="ctrl-label">Kolor ścian</div>
         <div class="wall-colors" id="wall-colors"></div>
+        <label class="custom-color"><input type="color" id="wall-custom"><span>Własny kolor ścian</span></label>
         <label class="ctrl" style="margin-top:12px">Pora dnia <output id="out-day"></output>
           <input type="range" id="in-day" min="0" max="1" step="0.02" value="0.85"></label>
       </div>
@@ -409,6 +410,13 @@ wallColorsEl.addEventListener('click', (e) => {
   pushHistory();
 });
 
+const wallCustom = $<HTMLInputElement>('#wall-custom');
+wallCustom.addEventListener('input', () => {
+  room.setWallColor(parseInt(wallCustom.value.slice(1), 16));
+  syncRoomUI();
+});
+wallCustom.addEventListener('change', () => pushHistory());
+
 const areaInfo = $<HTMLDivElement>('#area-info');
 const updateArea = () => {
   areaInfo.textContent = `Powierzchnia: ${room.area.toFixed(1)} m²`;
@@ -449,6 +457,7 @@ function syncRoomUI(): void {
   wallColorsEl.querySelectorAll<HTMLElement>('.swatch').forEach((s) =>
     s.classList.toggle('active', Number(s.dataset.color) === room.wallColor)
   );
+  wallCustom.value = hex(room.wallColor);
   updateArea();
 }
 
@@ -544,7 +553,7 @@ planner.onSelect = (item) => {
       <span class="sel-dims">${w}×${d}×${h} m · ${zl.format(item.product.price)}</span>
     </div>
     <span class="sel-warn" id="sp-warn">⚠ kolizja</span>
-    ${item.product.colors.length > 1 ? `<div class="divider"></div><div class="colors">${colors}</div>` : ''}
+    <div class="divider"></div><div class="colors">${item.product.colors.length > 1 ? colors : ''}<label class="custom-color sel-cc" title="Własny kolor"><input type="color" id="sp-custom" value="${hex(item.color)}"></label></div>
     <div class="divider"></div>
     <button class="icon-btn" id="sp-rot" title="Obróć (R)">↻</button>
     <button class="icon-btn" id="sp-dup" title="Duplikuj (Ctrl+D)">⧉</button>
@@ -554,6 +563,8 @@ planner.onSelect = (item) => {
   selpanel.querySelectorAll<HTMLElement>('.colors .swatch').forEach((s) =>
     s.addEventListener('click', () => planner.recolorSelected(Number(s.dataset.color)))
   );
+  const spCustom = selpanel.querySelector<HTMLInputElement>('#sp-custom');
+  spCustom?.addEventListener('input', () => planner.recolorSelected(parseInt(spCustom.value.slice(1), 16)));
   $<HTMLButtonElement>('#sp-rot').addEventListener('click', () => planner.rotateSelected(Math.PI / 4));
   $<HTMLButtonElement>('#sp-dup').addEventListener('click', () => planner.duplicateSelected());
   $<HTMLButtonElement>('#sp-del').addEventListener('click', () => planner.deleteSelected());
@@ -1013,16 +1024,20 @@ function statsHtml(orders: OrderSummary[]): string {
   for (const o of orders) for (const it of o.items || []) rev.set(it.name, (rev.get(it.name) || 0) + it.price * (it.qty || 1));
   const top = [...rev.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const max = top.length ? top[0][1] : 1;
+  const revTotal = [...rev.values()].reduce((s, v) => s + v, 0) || 1;
   const badges = STATUSES.filter((s) => byStatus.get(s)).map((s) => `<span class="stat-badge s-${statusKey(s)}">${s}: ${byStatus.get(s)}</span>`).join('');
-  // wykres magnitudy: poziome słupki, jedna barwa, wartości w kolorze tekstu
+  // wykres magnitudy: poziome słupki, jedna barwa, wartości w kolorze tekstu; tooltip = udział w obrocie
   const chart = top.length
     ? top
-        .map(
-          ([n, v]) =>
-            `<div class="chart-row"><span class="chart-label" title="${esc(n)}">${esc(n)}</span>` +
+        .map(([n, v]) => {
+          const share = Math.round((v / revTotal) * 100);
+          const tip = `${n} — ${zl.format(v)} (${share}% obrotu)`;
+          return (
+            `<div class="chart-row" title="${esc(tip)}"><span class="chart-label" title="${esc(n)}">${esc(n)}</span>` +
             `<span class="chart-track"><span class="chart-bar" style="width:${Math.max(4, Math.round((v / max) * 100))}%"></span></span>` +
             `<span class="chart-val">${zl.format(v)}</span></div>`
-        )
+          );
+        })
         .join('')
     : '<div class="ao-line">—</div>';
   return `<div class="admin-stats">
@@ -1037,6 +1052,26 @@ function statsHtml(orders: OrderSummary[]): string {
 }
 
 let adminOrders: OrderSummary[] = [];
+let adminFilter = 'wszystkie';
+let adminSort = 'new';
+
+function renderAdmin(): void {
+  let list = adminOrders.slice();
+  if (adminFilter !== 'wszystkie') list = list.filter((o) => (o.status || 'nowe') === adminFilter);
+  if (adminSort === 'new') list.sort((a, b) => b.orderNo - a.orderNo);
+  else if (adminSort === 'old') list.sort((a, b) => a.orderNo - b.orderNo);
+  else if (adminSort === 'val-desc') list.sort((a, b) => b.total - a.total);
+  else if (adminSort === 'val-asc') list.sort((a, b) => a.total - b.total);
+  const opt = (v: string, cur: string, label: string) => `<option value="${v}"${v === cur ? ' selected' : ''}>${label}</option>`;
+  const controls = `<div class="admin-controls">
+    <select id="admin-filter">${opt('wszystkie', adminFilter, 'Wszystkie statusy')}${STATUSES.map((s) => opt(s, adminFilter, s)).join('')}</select>
+    <select id="admin-sort">${opt('new', adminSort, 'Najnowsze')}${opt('old', adminSort, 'Najstarsze')}${opt('val-desc', adminSort, 'Wartość ↓')}${opt('val-asc', adminSort, 'Wartość ↑')}</select>
+    <span class="admin-count">${list.length} z ${adminOrders.length}</span>
+  </div>`;
+  adminBody.innerHTML =
+    statsHtml(adminOrders) + controls +
+    (list.length ? list.map(renderAdminOrder).join('') : '<div class="orders-empty">Brak zamówień o tym statusie.</div>');
+}
 
 async function openAdmin(): Promise<void> {
   adminBody.innerHTML = '<div class="orders-empty">Ładowanie…</div>';
@@ -1045,7 +1080,7 @@ async function openAdmin(): Promise<void> {
   adminOrders = orders ?? [];
   if (!orders) { adminBody.innerHTML = '<div class="orders-empty">Backend offline. Uruchom „npm run dev:full".</div>'; return; }
   if (orders.length === 0) { adminBody.innerHTML = '<div class="orders-empty">Brak zamówień. Złóż pierwsze przez „Zamów aranżację".</div>'; return; }
-  adminBody.innerHTML = statsHtml(orders) + orders.slice().reverse().map(renderAdminOrder).join('');
+  renderAdmin();
 }
 
 function ordersToCsv(orders: OrderSummary[]): string {
@@ -1077,14 +1112,16 @@ $<HTMLButtonElement>('#admin-csv').addEventListener('click', exportOrdersCsv);
 adminModal.addEventListener('click', (e) => { if (e.target === adminModal) adminModal.classList.remove('show'); });
 adminBody.addEventListener('change', async (e) => {
   const sel = e.target as HTMLSelectElement;
+  if (sel.id === 'admin-filter') { adminFilter = sel.value; renderAdmin(); return; }
+  if (sel.id === 'admin-sort') { adminSort = sel.value; renderAdmin(); return; }
   if (!sel.dataset.no) return;
   const no = Number(sel.dataset.no);
   const r = await api.updateOrderStatus(no, sel.value);
   if (r) {
-    sel.className = `ao-status s-${statusKey(sel.value)}`;
     const local = adminOrders.find((o) => o.orderNo === no);
     if (local) local.status = sel.value;
     toast(`#${no} → ${sel.value}`);
+    renderAdmin();
   } else toast('Nie udało się zmienić statusu');
 });
 

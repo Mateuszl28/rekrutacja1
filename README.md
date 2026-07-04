@@ -26,7 +26,9 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🧾 **Proces zamówienia** — wieloetapowy checkout: koszyk → dane klienta i dostawa (walidacja) → potwierdzenie z numerem; **opcje dostawy z kosztem** (kurier/ekspres/odbiór), **kody rabatowe** (MEBLE10, GRATIS) i podsumowanie na żywo; backend zapisuje klienta, dostawę i pozycje.
 - ⬇️ **Eksport CSV** zamówień z panelu obsługi (z BOM — poprawne polskie znaki w Excelu).
 - 🖼️ **Miniatura aranżacji** zapisywana przy zamówieniu i widoczna w panelu obsługi.
-- 📈 **Wykres sprzedaży** (top produkty wg obrotu) w statystykach panelu obsługi.
+- 📈 **Wykres sprzedaży** (top produkty wg obrotu) w statystykach panelu obsługi, z podpowiedzią udziału w obrocie na słupku.
+- 🗂️ **Filtr statusów i sortowanie** zamówień w panelu obsługi (najnowsze/najstarsze, wartość rosnąco/malejąco).
+- 🎨 **Własne kolory** — dowolny odcień ścian i zaznaczonego mebla (natywny próbnik koloru), obok gotowych próbek.
 - 🖼️ **Miniatury 3D** produktów w katalogu (renderowane z modeli `.glb`) + **wyszukiwarka**.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **wydruk/PDF** podsumowania.
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
