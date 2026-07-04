@@ -4,17 +4,9 @@ import type { Room } from './Room';
 import type { ProductDef, PlacedItemState } from '../types';
 import { getProduct, effectiveSize, effectivePrice, getVariant } from '../data/products';
 import { instantiate, applyColor } from '../furniture/loader';
+import { type AABB, aabbAt, halfExtents as halfExtentsOf2, overlaps as overlaps2 } from './geometry';
 
 let UID = 0;
-
-interface AABB {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  minY: number;
-  maxY: number;
-}
 
 export interface PlacedItem {
   uid: number;
@@ -97,24 +89,9 @@ export class Planner {
     return item.product.mount === 'wall';
   }
 
-  private yRangeOf(item: PlacedItem): [number, number] {
-    const h = item.size[1];
-    if (item.product.mount === 'wall') {
-      const mh = item.product.mountHeight ?? 1.5;
-      return [mh - h / 2, mh + h / 2];
-    }
-    return [0, h];
-  }
-
   /** AABB mebla przy zadanej pozycji/obrocie (uwzględnia efektywny gabaryt wariantu). */
   private boxOf(item: PlacedItem, x: number, z: number, ry: number): AABB {
-    const [w, , d] = item.size;
-    const c = Math.abs(Math.cos(ry));
-    const s = Math.abs(Math.sin(ry));
-    const hx = (c * w + s * d) / 2;
-    const hz = (s * w + c * d) / 2;
-    const [minY, maxY] = this.yRangeOf(item);
-    return { minX: x - hx, maxX: x + hx, minZ: z - hz, maxZ: z + hz, minY, maxY };
+    return aabbAt(item.size, x, z, ry, item.product.mount, item.product.mountHeight ?? 1.5);
   }
 
   private aabbOf(item: PlacedItem): AABB {
@@ -122,12 +99,7 @@ export class Planner {
   }
 
   private overlaps(a: AABB, b: AABB): boolean {
-    const eps = 0.02;
-    return (
-      a.minX < b.maxX - eps && a.maxX > b.minX + eps &&
-      a.minZ < b.maxZ - eps && a.maxZ > b.minZ + eps &&
-      a.minY < b.maxY - eps && a.maxY > b.minY + eps
-    );
+    return overlaps2(a, b);
   }
 
   private otherSolidBoxes(exclude: PlacedItem): AABB[] {
@@ -542,10 +514,7 @@ export class Planner {
   // ————— granice / kolizje —————
 
   private halfExtentsOf(item: PlacedItem, ry: number): { hx: number; hz: number } {
-    const [w, , d] = item.size;
-    const c = Math.abs(Math.cos(ry));
-    const s = Math.abs(Math.sin(ry));
-    return { hx: (c * w + s * d) / 2, hz: (s * w + c * d) / 2 };
+    return halfExtentsOf2(item.size, ry);
   }
 
   /** Magnetyczne wyrównanie do krawędzi/środków sąsiadów oraz do ścian. */

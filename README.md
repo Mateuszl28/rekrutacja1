@@ -66,6 +66,23 @@ npm run server       # sam backend koszyka
 npm run models       # regeneracja modeli .glb do public/models/
 npm run build        # produkcyjny build (type-check + vite build → dist/)
 npm run typecheck    # sama kontrola typów TypeScript
+npm test             # testy jednostkowe (Vitest)
+```
+
+### Testy
+
+Czysta logika domenowa jest odseparowana od warstwy 3D/DOM i pokryta testami (Vitest):
+
+- `src/scene/geometry.ts` — analityczne AABB, obwiednie po obrocie, zakresy Y i
+  wykrywanie kolizji (w tym rozdział meble podłogowe / wiszące). `Planner` korzysta
+  z tego modułu, więc test geometrii = test rdzenia kolizji.
+- `src/data/products.ts` — warianty (rozmiar/cena), spójność `variants[0]` z bazą.
+- Integralność danych — elementy zestawów i aranżacji wskazują istniejące produkty
+  i poprawne warianty.
+
+```bash
+npm test             # jednorazowo (CI)
+npx vitest           # tryb watch
 ```
 
 > Modele `.glb` są już wygenerowane i wersjonowane w `public/models/`, więc aplikacja
@@ -107,6 +124,7 @@ src/
     ├── SceneManager.ts     # renderer, kamera, światło, env-map, pętla, widok 2D/3D
     ├── Room.ts             # parametryczny pokój (podłoga z teksturą, ściany, presety)
     ├── textures.ts         # proceduralne tekstury podłóg (canvas)
+    ├── geometry.ts         # czysta geometria kolizji AABB (bez Three.js — testowalna)
     └── Planner.ts          # dodawanie, drag, kolizje 3D, montaż ścienny, zapis
 scripts/
 └── export-glb.ts           # eksport fabryki mebli do public/models/*.glb (GLTFExporter)
