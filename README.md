@@ -29,6 +29,8 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
 - 🚀 **Onboarding** — ekran powitalny przy pierwszym wejściu i modal pomocy ze skrótami (❓).
 - 📱 **Responsywność** — na wąskich ekranach katalog i koszyk działają jako wysuwane panele (dotyk).
+- 🛠️ **Panel obsługi zamówień** — podgląd zamówień z danymi klienta i dostawy oraz zmiana statusu (nowe → w realizacji → wysłane → zrealizowane).
+- 📐 **Prowadnice wyrównania** — podczas przeciągania pokazują się linie, gdy mebel wyrównuje się do sąsiada lub ściany.
 - 💾 **Zapis / odczyt** projektu i **zrzut PNG** aranżacji.
 
 ## Uruchomienie

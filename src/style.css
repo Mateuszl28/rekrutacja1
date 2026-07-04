@@ -467,6 +467,25 @@ aside.cart { border-left: 1px solid var(--line); }
 .order-no { font-weight: 600; font-size: 14px; }
 .order-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .order-total { color: var(--accent); font-weight: 700; white-space: nowrap; }
+/* —————————— PANEL OBSŁUGI —————————— */
+.modal-wide { width: min(660px, 94vw); }
+.admin-order { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.ao-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ao-no { font-weight: 700; }
+.ao-date { color: var(--muted); font-size: 12px; }
+.ao-right { display: flex; align-items: center; gap: 10px; }
+.ao-total { color: var(--accent); font-weight: 700; }
+.ao-line { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.ao-status {
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  border-radius: 7px; padding: 6px 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.ao-status.s-nowe { border-color: var(--accent-2); color: var(--accent-2); }
+.ao-status.s-realizacja { border-color: var(--accent); color: var(--accent); }
+.ao-status.s-wyslane { border-color: #3f9dc9; color: #57b6e0; }
+.ao-status.s-gotowe { border-color: var(--ok); color: var(--ok); }
+.ao-status.s-anulowane { border-color: var(--danger); color: var(--danger); }
+
 .proj-actions { display: flex; gap: 6px; }
 .proj-actions .btn { padding: 6px 10px; font-size: 12px; }
 .modal-foot { padding: 12px 18px 16px; border-top: 1px solid var(--line); }

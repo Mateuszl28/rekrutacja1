@@ -49,6 +49,7 @@ app.innerHTML = `
         <div class="menu" id="menu" hidden>
           <button class="menu-item" id="btn-projects">📁 Moje projekty</button>
           <button class="menu-item" id="btn-orders">📋 Historia zamówień</button>
+          <button class="menu-item" id="btn-admin">🛠️ Panel obsługi zamówień</button>
           <div class="menu-sep"></div>
           <button class="menu-item" id="btn-save">💾 Zapisz projekt</button>
           <button class="menu-item" id="btn-load">📂 Wczytaj projekt</button>
@@ -181,6 +182,12 @@ app.innerHTML = `
         <button class="btn" id="w-template">✨ Wstaw gotową aranżację</button>
         <button class="btn" id="w-help">Jak to działa?</button>
       </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="admin-modal">
+    <div class="modal modal-wide">
+      <div class="modal-head"><span>🛠️ Panel obsługi zamówień</span><button class="modal-close" id="admin-close">✕</button></div>
+      <div class="modal-body" id="admin-body"></div>
     </div>
   </div>
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
@@ -880,6 +887,53 @@ $<HTMLButtonElement>('#btn-print').addEventListener('click', () => {
   w.document.close();
 });
 
+// —————————————————————— PANEL OBSŁUGI (admin) ——————————————————————
+const STATUSES = ['nowe', 'w realizacji', 'wysłane', 'zrealizowane', 'anulowane'];
+const statusKey = (s: string) =>
+  ({ nowe: 'nowe', 'w realizacji': 'realizacja', wysłane: 'wyslane', zrealizowane: 'gotowe', anulowane: 'anulowane' } as Record<string, string>)[s] || 'nowe';
+const adminModal = $<HTMLDivElement>('#admin-modal');
+const adminBody = $<HTMLDivElement>('#admin-body');
+
+function renderAdminOrder(o: OrderSummary): string {
+  const st = o.status || 'nowe';
+  const cust = o.customer
+    ? `${esc(o.customer.name)} · ${esc(o.customer.email)}${o.customer.phone ? ' · ' + esc(o.customer.phone) : ''}`
+    : 'brak danych';
+  const del = o.delivery ? `${esc(o.delivery.method)}${o.delivery.address && o.delivery.address !== '—' ? ' → ' + esc(o.delivery.address) : ''}` : '';
+  const items = (o.items || []).map((i) => `${i.qty}× ${esc(i.name)}`).join(', ');
+  const opts = STATUSES.map((s) => `<option value="${s}"${s === st ? ' selected' : ''}>${s}</option>`).join('');
+  return `<div class="admin-order">
+    <div class="ao-top">
+      <div><span class="ao-no">#${o.orderNo}</span> <span class="ao-date">${dtFmt.format(new Date(o.createdAt))}</span></div>
+      <div class="ao-right"><span class="ao-total">${zl.format(o.total)}</span>
+      <select class="ao-status s-${statusKey(st)}" data-no="${o.orderNo}">${opts}</select></div>
+    </div>
+    <div class="ao-line">👤 ${cust}</div>
+    ${del ? `<div class="ao-line">🚚 ${del}</div>` : ''}
+    <div class="ao-line">📦 ${items || '—'}</div>
+  </div>`;
+}
+
+async function openAdmin(): Promise<void> {
+  adminBody.innerHTML = '<div class="orders-empty">Ładowanie…</div>';
+  adminModal.classList.add('show');
+  const orders = await api.listOrders();
+  if (!orders) { adminBody.innerHTML = '<div class="orders-empty">Backend offline. Uruchom „npm run dev:full".</div>'; return; }
+  if (orders.length === 0) { adminBody.innerHTML = '<div class="orders-empty">Brak zamówień. Złóż pierwsze przez „Zamów aranżację".</div>'; return; }
+  adminBody.innerHTML = orders.slice().reverse().map(renderAdminOrder).join('');
+}
+
+$<HTMLButtonElement>('#btn-admin').addEventListener('click', openAdmin);
+$<HTMLButtonElement>('#admin-close').addEventListener('click', () => adminModal.classList.remove('show'));
+adminModal.addEventListener('click', (e) => { if (e.target === adminModal) adminModal.classList.remove('show'); });
+adminBody.addEventListener('change', async (e) => {
+  const sel = e.target as HTMLSelectElement;
+  if (!sel.dataset.no) return;
+  const r = await api.updateOrderStatus(Number(sel.dataset.no), sel.value);
+  if (r) { sel.className = `ao-status s-${statusKey(sel.value)}`; toast(`#${sel.dataset.no} → ${sel.value}`); }
+  else toast('Nie udało się zmienić statusu');
+});
+
 // —————————————————————— POMOC ——————————————————————
 const helpModal = $<HTMLDivElement>('#help-modal');
 $<HTMLButtonElement>('#btn-help').addEventListener('click', () => helpModal.classList.add('show'));
@@ -933,6 +987,7 @@ window.addEventListener('keydown', (e) => {
     if (welcomeModal.classList.contains('show')) closeWelcome();
     else if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
     else if (helpModal.classList.contains('show')) helpModal.classList.remove('show');
+    else if (adminModal.classList.contains('show')) adminModal.classList.remove('show');
     else if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
     else if (projectsModal.classList.contains('show')) projectsModal.classList.remove('show');
     else if (templatesModal.classList.contains('show')) templatesModal.classList.remove('show');

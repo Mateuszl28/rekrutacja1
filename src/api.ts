@@ -59,6 +59,10 @@ export interface OrderSummary {
   room: RoomKind | null;
   total: number;
   count: number;
+  status?: string;
+  customer?: Customer | null;
+  delivery?: { method: string; address: string } | null;
+  items?: OrderPayloadItem[];
 }
 
 export interface ProjectSummary {
@@ -77,6 +81,12 @@ export const api = {
   health: () => req<{ ok: boolean; orders: number }>('/api/health'),
   placeOrder: (payload: OrderPayload) => post<OrderResult>('/api/orders', payload),
   listOrders: () => req<OrderSummary[]>('/api/orders'),
+  updateOrderStatus: (orderNo: number, status: string) =>
+    req<{ ok: boolean; status: string }>(`/api/orders/${orderNo}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }),
   saveCart: (snapshot: Snapshot) => post<{ id: string }>('/api/cart', { snapshot }),
   loadCart: (id: string) => req<{ snapshot: Snapshot }>(`/api/cart/${id}`),
   listProjects: () => req<ProjectSummary[]>('/api/projects'),

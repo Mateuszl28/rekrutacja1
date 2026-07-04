@@ -44,6 +44,8 @@ export class Planner {
   private dragOffset = new THREE.Vector3();
   private dragObstacles: AABB[] = [];
   private selectionBox: THREE.BoxHelper;
+  private guideX!: THREE.Line;
+  private guideZ!: THREE.Line;
 
   onChange: () => void = () => {};
   onCommit: () => void = () => {};
@@ -57,6 +59,15 @@ export class Planner {
     this.selectionBox = new THREE.BoxHelper(new THREE.Object3D(), 0xffb020);
     this.selectionBox.visible = false;
     sm.scene.add(this.selectionBox);
+
+    // prowadnice wyrównania (pokazywane przy przyciąganiu w trakcie przeciągania)
+    const guideMat = new THREE.LineBasicMaterial({ color: 0x37b26a, transparent: true, opacity: 0.9 });
+    const mkLine = () => new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), guideMat);
+    this.guideX = mkLine();
+    this.guideZ = mkLine();
+    this.guideX.visible = false;
+    this.guideZ.visible = false;
+    sm.scene.add(this.guideX, this.guideZ);
 
     const el = sm.renderer.domElement;
     el.addEventListener('pointerdown', (e) => this.onPointerDown(e));
@@ -406,12 +417,14 @@ export class Planner {
       }
       this.dragMoved = true;
       this.updateCollisions();
+      this.hideGuides();
       return;
     }
 
     const ry = item.group.rotation.y;
     let nx = hit.x - this.dragOffset.x;
     let nz = hit.z - this.dragOffset.z;
+    let snapX = false, snapZ = false;
     if (this.snap) {
       const g = 0.25;
       nx = Math.round(nx / g) * g;
@@ -419,6 +432,8 @@ export class Planner {
       const m = this.magnetSnap(item, nx, nz, ry); // przyciąganie do krawędzi sąsiadów/ścian
       nx = m.x;
       nz = m.z;
+      snapX = m.sx;
+      snapZ = m.sz;
     }
     // ogranicz do wnętrza pokoju
     const { hx, hz } = this.halfExtents(item.product, ry);
@@ -442,12 +457,14 @@ export class Planner {
 
     this.dragMoved = true;
     this.updateCollisions();
+    this.updateGuides(snapX ? item.group.position.x : null, snapZ ? item.group.position.z : null);
   }
 
   private onPointerUp(): void {
     if (!this.dragging) return;
     this.dragging = false;
     this.sm.controls.enabled = true;
+    this.hideGuides();
     if (this.dragMoved) this.onCommit();
   }
 
@@ -461,7 +478,7 @@ export class Planner {
   }
 
   /** Magnetyczne wyrównanie do krawędzi/środków sąsiadów oraz do ścian. */
-  private magnetSnap(item: PlacedItem, x: number, z: number, ry: number): { x: number; z: number } {
+  private magnetSnap(item: PlacedItem, x: number, z: number, ry: number): { x: number; z: number; sx: boolean; sz: boolean } {
     const thr = 0.16;
     const { hx, hz } = this.halfExtents(item.product, ry);
     const b = this.room.bounds;
@@ -473,11 +490,28 @@ export class Planner {
       xt.push(ob.minX - hx, ob.maxX + hx, (ob.minX + ob.maxX) / 2);
       zt.push(ob.minZ - hz, ob.maxZ + hz, (ob.minZ + ob.maxZ) / 2);
     }
-    let bx = x, dx = thr;
-    for (const t of xt) { const d = Math.abs(t - x); if (d < dx) { dx = d; bx = t; } }
-    let bz = z, dz = thr;
-    for (const t of zt) { const d = Math.abs(t - z); if (d < dz) { dz = d; bz = t; } }
-    return { x: bx, z: bz };
+    let bx = x, dx = thr, sx = false;
+    for (const t of xt) { const d = Math.abs(t - x); if (d < dx) { dx = d; bx = t; sx = true; } }
+    let bz = z, dz = thr, sz = false;
+    for (const t of zt) { const d = Math.abs(t - z); if (d < dz) { dz = d; bz = t; sz = true; } }
+    return { x: bx, z: bz, sx, sz };
+  }
+
+  private updateGuides(x: number | null, z: number | null): void {
+    const b = this.room.bounds;
+    if (x !== null) {
+      this.guideX.geometry.setFromPoints([new THREE.Vector3(x, 0.02, b.minZ), new THREE.Vector3(x, 0.02, b.maxZ)]);
+      this.guideX.visible = true;
+    } else this.guideX.visible = false;
+    if (z !== null) {
+      this.guideZ.geometry.setFromPoints([new THREE.Vector3(b.minX, 0.02, z), new THREE.Vector3(b.maxX, 0.02, z)]);
+      this.guideZ.visible = true;
+    } else this.guideZ.visible = false;
+  }
+
+  private hideGuides(): void {
+    this.guideX.visible = false;
+    this.guideZ.visible = false;
   }
 
   /** Zaznacza pierwszy mebel danego produktu i centruje na nim kamerę. */

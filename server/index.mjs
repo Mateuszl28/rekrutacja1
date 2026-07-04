@@ -49,7 +49,7 @@ function json(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
   res.end(JSON.stringify(body));
@@ -114,6 +114,15 @@ const server = createServer(async (req, res) => {
       if (req.method === 'GET' && pathname === '/api/orders') {
         return json(res, 200, db.orders);
       }
+      if (req.method === 'PATCH' && pathname.startsWith('/api/orders/')) {
+        const orderNo = Number(pathname.slice('/api/orders/'.length));
+        const body = await readBody(req);
+        const order = db.orders.find((o) => o.orderNo === orderNo);
+        if (!order) return json(res, 404, { error: 'not found' });
+        order.status = String(body.status || order.status);
+        persist(db);
+        return json(res, 200, { ok: true, status: order.status });
+      }
       if (req.method === 'POST' && pathname === '/api/orders') {
         const body = await readBody(req);
         const items = Array.isArray(body.items) ? body.items : [];
@@ -122,6 +131,7 @@ const server = createServer(async (req, res) => {
         db.orders.push({
           orderNo,
           createdAt,
+          status: 'nowe',
           room: body.room ?? null,
           total: Number(body.total) || 0,
           count: items.reduce((s, i) => s + (i.qty || 1), 0),
