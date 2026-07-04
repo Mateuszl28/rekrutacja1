@@ -5,6 +5,7 @@ import type { ProductDef, PlacedItemState } from '../types';
 import { getProduct, effectiveSize, effectivePrice, getVariant } from '../data/products';
 import { instantiate, applyColor } from '../furniture/loader';
 import { type AABB, aabbAt, halfExtents as halfExtentsOf2, overlaps as overlaps2 } from './geometry';
+import { solveLayout, type SolverItem, type Anchor } from '../data/solver';
 
 let UID = 0;
 
@@ -44,6 +45,7 @@ export class Planner {
   private selectionBox: THREE.BoxHelper;
   private guideX!: THREE.Line;
   private guideZ!: THREE.Line;
+  private arrangeTween: { items: PlacedItem[]; from: { x: number; z: number }[]; to: { x: number; z: number }[]; t: number } | null = null;
 
   onChange: () => void = () => {};
   onCommit: () => void = () => {};
@@ -75,8 +77,70 @@ export class Planner {
     window.addEventListener('pointerup', () => this.onPointerUp());
 
     sm.onUpdate(() => {
+      this.stepArrangeTween();
       if (this.selected) this.selectionBox.update();
     });
+  }
+
+  /** Animacja przejścia do układu z solvera (auto-rozmieszczenie). */
+  private stepArrangeTween(): void {
+    const tw = this.arrangeTween;
+    if (!tw) return;
+    tw.t = Math.min(1, tw.t + 0.055);
+    const e = tw.t < 0.5 ? 2 * tw.t * tw.t : 1 - Math.pow(-2 * tw.t + 2, 2) / 2; // easeInOutQuad
+    for (let i = 0; i < tw.items.length; i++) {
+      const p = tw.items[i].group.position;
+      p.x = tw.from[i].x + (tw.to[i].x - tw.from[i].x) * e;
+      p.z = tw.from[i].z + (tw.to[i].z - tw.from[i].z) * e;
+    }
+    this.updateCollisions();
+    if (tw.t >= 1) {
+      this.arrangeTween = null;
+      this.onTransform();
+      this.onCommit();
+    }
+  }
+
+  /**
+   * Automatycznie porządkuje meble stojące w pokoju: dosuwa je do najbliższych
+   * ścian i usuwa kolizje (solver — symulowane wyżarzanie), z płynną animacją.
+   * Zwraca liczbę przemieszczonych mebli.
+   */
+  autoArrange(seed = 0): number {
+    const floor = this.items.filter((i) => this.isSolid(i) && !this.isWall(i));
+    if (floor.length === 0) return 0;
+    const b = this.room.bounds;
+    const solverItems: SolverItem[] = floor.map((it) => ({
+      w: it.size[0],
+      d: it.size[2],
+      ry: it.group.rotation.y,
+      anchor: this.anchorFromPosition(it.group.position.x, it.group.position.z, b),
+    }));
+    const solved = solveLayout(solverItems, this.room.width, this.room.depth, seed >>> 0);
+    this.arrangeTween = {
+      items: floor,
+      from: floor.map((it) => ({ x: it.group.position.x, z: it.group.position.z })),
+      to: solved,
+      t: 0,
+    };
+    return floor.length;
+  }
+
+  /** Wyprowadza kotwicę (najbliższa ściana/narożnik/środek) z bieżącej pozycji mebla. */
+  private anchorFromPosition(x: number, z: number, b: { minX: number; maxX: number; minZ: number; maxZ: number }): Anchor {
+    const dBack = z - b.minZ, dFront = b.maxZ - z, dLeft = x - b.minX, dRight = b.maxX - x;
+    const near = 1.2;
+    const backN = dBack < near, frontN = dFront < near, leftN = dLeft < near, rightN = dRight < near;
+    if (backN && leftN) return 'corner-bl';
+    if (backN && rightN) return 'corner-br';
+    if (frontN && leftN) return 'corner-fl';
+    if (frontN && rightN) return 'corner-fr';
+    const m = Math.min(dBack, dFront, dLeft, dRight);
+    if (m > 1.4) return 'center';
+    if (m === dBack) return 'wall-back';
+    if (m === dFront) return 'wall-front';
+    if (m === dLeft) return 'wall-left';
+    return 'wall-right';
   }
 
   // ————— geometria kolizji (analityczne AABB w rzucie XZ) —————

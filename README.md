@@ -19,6 +19,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🧩 **Planer = koszyk** — meble ustawione w pokoju tworzą listę zamówienia z sumą.
 - 🖱️ **Aranżacja w scenie** — dodawanie klikiem lub **przeciągnij-i-upuść**, przesuwanie po podłodze, obrót, zmiana koloru w locie, usuwanie, **duplikowanie**, **strzałki** do precyzyjnego przesuwania.
 - 🧱 **Meble wiszące** — szafki górne, TV, obraz i kinkiet **przylegają do ścian** i ślizgają się po nich; kolizje uwzględniają wysokość (górne nie kolidują z dolnymi).
+- 🧩 **Uporządkuj (auto-rozmieść)** — jeden klik uruchamia solver na meblach stojących w pokoju: dosuwa je do najbliższych ścian i rozsuwa kolizje, z płynną animacją przejścia (jedna operacja cofnij/ponów).
 - 🚧 **Kolizje blokujące ruch** — mebel nie wjeżdża w inny; „ślizga się” po przeszkodzie (rozdzielenie osi). Przy dodawaniu automatycznie szuka wolnego miejsca.
 - ✨ **Realistyczna scena** — proceduralne tekstury podłóg (drewno / płytki), mapa środowiska (odbicia na metalu/stali), tone mapping ACES, cienie.
 - 🧲 **Przyciąganie do siatki**, granice pokoju z uwzględnieniem obrotu.

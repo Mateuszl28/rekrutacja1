@@ -46,6 +46,7 @@ app.innerHTML = `
       <div class="tool-group">
         <button class="btn" id="btn-view" title="Rzut z góry / 3D">⬜ 2D</button>
         <button class="btn active" id="btn-snap" title="Przyciąganie do siatki">🧲</button>
+        <button class="btn icon" id="btn-arrange" title="Uporządkuj — auto-rozmieść meble przy ścianach">🧩</button>
         <button class="btn icon" id="btn-reset" title="Reset kamery">🎯</button>
         <button class="btn icon" id="btn-theme" title="Motyw jasny / ciemny">🌗</button>
         <button class="btn icon" id="btn-help" title="Pomoc / skróty">❓</button>
@@ -875,6 +876,12 @@ $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
   btnView.textContent = '⬜ Widok 2D';
   btnView.classList.remove('active');
   sm.setPerspectiveView();
+});
+
+$<HTMLButtonElement>('#btn-arrange').addEventListener('click', () => {
+  const n = planner.autoArrange(Math.floor(Math.random() * 1e6));
+  if (n === 0) toast('Dodaj meble, aby je uporządkować');
+  else toast(`🧩 Porządkuję ${n} mebli…`);
 });
 
 // przełącznik motywu jasny / ciemny (zapisywany)
