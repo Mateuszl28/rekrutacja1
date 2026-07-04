@@ -40,6 +40,10 @@ body, .topbar, .catalog, .cart, .panel, .modal, .menu, .card, .selpanel { transi
 
 * { box-sizing: border-box; }
 
+/* Widoczny fokus tylko dla nawigacji klawiaturą (nie przy kliknięciu myszą) */
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 6px; }
+.swatch:focus-visible { outline-offset: 3px; }
+
 /* atrybut `hidden` musi zawsze wygrywać z regułami display klas (np. .menu, formularze) */
 [hidden] { display: none !important; }
 

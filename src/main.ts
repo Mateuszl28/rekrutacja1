@@ -1659,10 +1659,70 @@ function toast(msg: string): void {
   toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 2600);
 }
 
+// —————————————————————— DOSTĘPNOŚĆ (a11y) ——————————————————————
+function focusablesIn(el: HTMLElement): HTMLElement[] {
+  const sel = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return [...el.querySelectorAll<HTMLElement>(sel)].filter((e) => e.offsetParent !== null);
+}
+function topShownModal(): HTMLElement | null {
+  const shown = [...document.querySelectorAll<HTMLElement>('.modal-overlay.show')];
+  return shown.length ? shown[shown.length - 1] : null;
+}
+let a11yLastTrigger: HTMLElement | null = null;
+
+function initA11y(): void {
+  // Modale = dialogi z etykietą z nagłówka; zarządzanie fokusem przy otwarciu/zamknięciu
+  document.querySelectorAll<HTMLElement>('.modal-overlay').forEach((ov) => {
+    const modal = ov.querySelector<HTMLElement>(':scope > .modal');
+    if (modal) {
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      const label = modal.querySelector('.modal-head span, .welcome-card h1, .welcome-card h2')?.textContent?.trim();
+      if (label && !modal.getAttribute('aria-label')) modal.setAttribute('aria-label', label);
+    }
+    const obs = new MutationObserver(() => {
+      if (ov.classList.contains('show') && !ov.dataset.a11yOpen) {
+        ov.dataset.a11yOpen = '1';
+        a11yLastTrigger = document.activeElement as HTMLElement;
+        const f = focusablesIn(ov);
+        (f.find((e) => e.classList.contains('modal-close')) ?? f[0])?.focus();
+      } else if (!ov.classList.contains('show') && ov.dataset.a11yOpen) {
+        delete ov.dataset.a11yOpen;
+        a11yLastTrigger?.focus?.();
+      }
+    });
+    obs.observe(ov, { attributes: true, attributeFilter: ['class'] });
+  });
+
+  // Ikony bez widocznego tekstu — etykieta z atrybutu title
+  document.querySelectorAll<HTMLButtonElement>('button[title]').forEach((b) => {
+    const hasText = /[a-z0-9ąćęłńóśźż]/i.test(b.textContent || '');
+    if (!hasText && !b.getAttribute('aria-label')) b.setAttribute('aria-label', b.title);
+  });
+
+  // Toast jako grzeczny region na żywo
+  toastEl.setAttribute('role', 'status');
+  toastEl.setAttribute('aria-live', 'polite');
+}
+
+// Pułapka fokusa (Tab/Shift+Tab) wewnątrz aktywnego modala
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const modal = topShownModal();
+  if (!modal) return;
+  const f = focusablesIn(modal);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  const active = document.activeElement as HTMLElement;
+  if (e.shiftKey && (active === first || !modal.contains(active))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && (active === last || !modal.contains(active))) { e.preventDefault(); first.focus(); }
+});
+
 // —————————————————————— START ——————————————————————
 const loadingEl = $<HTMLDivElement>('#loading');
 const loadingText = $<HTMLDivElement>('#loading-text');
 
+initA11y();
 renderCatalog('living');
 syncRoomUI();
 syncFavUI();

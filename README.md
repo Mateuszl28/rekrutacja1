@@ -43,6 +43,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🌗 **Motyw jasny / ciemny** — przełącznik w pasku (zapamiętywany, z poszanowaniem preferencji systemu i bez migotania przy starcie); spójny system tokenów CSS, a HUD-y nad sceną 3D pozostają czytelne w obu motywach.
 - 🚀 **Onboarding** — ekran powitalny przy pierwszym wejściu i modal pomocy ze skrótami (❓).
 - 📱 **Responsywność** — na wąskich ekranach katalog i koszyk działają jako wysuwane panele (dotyk).
+- ♿ **Dostępność (a11y)** — modale jako `role="dialog"` z etykietą i **pułapką fokusa** (Tab/Shift+Tab nie ucieka poza modal, fokus wraca do przycisku po zamknięciu), widoczny `:focus-visible` dla klawiatury, etykiety `aria-label` na przyciskach-ikonach, powiadomienia jako `aria-live`.
 - 🛠️ **Panel obsługi zamówień** — podgląd zamówień z danymi klienta i dostawy, zmiana statusu oraz **statystyki sprzedaży** (liczba, obrót, średnia, rozkład statusów, top produkty).
 - 🔎 **Sortowanie katalogu** (cena / nazwa) obok wyszukiwarki, **filtr cen** (przedziały) i **miniatury reagujące na wybór koloru** (klik próbki przerenderowuje model w danym kolorze).
 - 📏 **HUD wymiarów** — dla zaznaczonego mebla pokazuje gabaryt i odległości od ścian (aktualizowane na żywo przy przeciąganiu).
