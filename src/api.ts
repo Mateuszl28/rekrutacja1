@@ -1,0 +1,57 @@
+// Klient backendu koszyka. Każde wywołanie jest odporne na brak serwera —
+// przy błędzie zwraca null, dzięki czemu aplikacja działa też w trybie offline
+// (frontend uruchomiony samodzielnie przez `npm run dev`).
+
+import type { PlacedItemState, RoomKind } from './types';
+
+export interface OrderPayloadItem {
+  productId: string;
+  name: string;
+  price: number;
+  qty: number;
+}
+
+export interface OrderResult {
+  orderNo: number;
+  createdAt: string;
+}
+
+export interface Snapshot {
+  room: { kind: RoomKind; width: number; depth: number; wallColor: number };
+  items: PlacedItemState[];
+}
+
+async function req<T>(url: string, opts?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(url, opts);
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function post<T>(url: string, body: unknown): Promise<T | null> {
+  return req<T>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export interface OrderSummary {
+  orderNo: number;
+  createdAt: string;
+  room: RoomKind | null;
+  total: number;
+  count: number;
+}
+
+export const api = {
+  health: () => req<{ ok: boolean; orders: number }>('/api/health'),
+  placeOrder: (payload: { items: OrderPayloadItem[]; total: number; room: RoomKind }) =>
+    post<OrderResult>('/api/orders', payload),
+  listOrders: () => req<OrderSummary[]>('/api/orders'),
+  saveCart: (snapshot: Snapshot) => post<{ id: string }>('/api/cart', { snapshot }),
+  loadCart: (id: string) => req<{ snapshot: Snapshot }>(`/api/cart/${id}`),
+};

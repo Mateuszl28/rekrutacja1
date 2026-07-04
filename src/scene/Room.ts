@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { RoomKind } from '../types';
+import { woodTexture, tileTexture } from './textures';
 
 interface RoomPreset {
   width: number;
@@ -44,6 +45,14 @@ export class Room {
     };
   }
 
+  get wallHeight(): number {
+    return this.preset.wallHeight;
+  }
+
+  get area(): number {
+    return this.width * this.depth;
+  }
+
   get floorPlane(): THREE.Plane {
     return new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   }
@@ -73,9 +82,13 @@ export class Room {
     const { wallHeight, floorColor, floorRough } = this.preset;
     const { width, depth, wallColor } = this;
 
+    const floorMap =
+      this.kind === 'kitchen'
+        ? tileTexture(floorColor, Math.round(Math.max(width, depth) * 1.2))
+        : woodTexture(floorColor, Math.round(Math.max(width, depth) * 0.9));
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(width, depth),
-      new THREE.MeshStandardMaterial({ color: floorColor, roughness: floorRough, metalness: 0.05 })
+      new THREE.MeshStandardMaterial({ color: floorColor, map: floorMap, roughness: floorRough, metalness: 0.05 })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;

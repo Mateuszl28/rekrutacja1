@@ -2,10 +2,13 @@ import './style.css';
 import { SceneManager } from './scene/SceneManager';
 import { Room, ROOM_LIMITS } from './scene/Room';
 import { Planner } from './scene/Planner';
+import { preloadModels } from './furniture/loader';
+import { api, type OrderPayloadItem, type OrderSummary } from './api';
 import { PRODUCTS } from './data/products';
 import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
 const STORAGE_KEY = 'meblelab3d-projekt';
+const CLOUD_ID_KEY = 'meblelab3d-cloud-id';
 const WALL_COLORS = [0xe7ded3, 0xeef1f4, 0xd7e3dd, 0xe6d9d2, 0xdfe3ea, 0xcdd3da, 0x3b4a63, 0x2f3640];
 
 const zl = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 });
@@ -24,6 +27,7 @@ app.innerHTML = `
       <button data-room="kitchen">🍳 Kuchnia</button>
     </div>
     <span class="spacer"></span>
+    <span class="api-status offline" id="api-status" title="Status backendu koszyka">● API</span>
     <div class="tools">
       <button class="btn" id="btn-undo" title="Cofnij (Ctrl+Z)">↶</button>
       <button class="btn" id="btn-redo" title="Ponów (Ctrl+Y)">↷</button>
@@ -33,6 +37,7 @@ app.innerHTML = `
       <button class="btn" id="btn-shot" title="Zapisz zrzut PNG">📸</button>
       <button class="btn" id="btn-save">💾 Zapisz</button>
       <button class="btn" id="btn-load">📂 Wczytaj</button>
+      <button class="btn" id="btn-orders" title="Historia zamówień (backend)">📋 Zamówienia</button>
       <button class="btn danger" id="btn-clear">🗑️</button>
     </div>
   </header>
@@ -50,6 +55,7 @@ app.innerHTML = `
           <input type="range" id="in-w" min="${ROOM_LIMITS.minW}" max="${ROOM_LIMITS.maxW}" step="0.5"></label>
         <label class="ctrl">Głębokość <output id="out-d"></output>
           <input type="range" id="in-d" min="${ROOM_LIMITS.minD}" max="${ROOM_LIMITS.maxD}" step="0.5"></label>
+        <div class="area-info" id="area-info"></div>
         <div class="ctrl-label">Kolor ścian</div>
         <div class="wall-colors" id="wall-colors"></div>
       </div>
@@ -68,6 +74,16 @@ app.innerHTML = `
     </aside>
   </div>
   <div class="toast" id="toast"></div>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">Ładowanie modeli 3D…</div>
+  </div>
+  <div class="modal-overlay" id="orders-modal">
+    <div class="modal">
+      <div class="modal-head"><span>📋 Historia zamówień</span><button class="modal-close" id="orders-close">✕</button></div>
+      <div class="modal-body" id="orders-body"></div>
+    </div>
+  </div>
 `;
 
 // —————————————————————— SCENA 3D ——————————————————————
@@ -242,11 +258,17 @@ wallColorsEl.addEventListener('click', (e) => {
   pushHistory();
 });
 
+const areaInfo = $<HTMLDivElement>('#area-info');
+const updateArea = () => {
+  areaInfo.textContent = `Powierzchnia: ${room.area.toFixed(1)} m²`;
+};
+
 const onSize = () => {
   room.setSize(Number(inW.value), Number(inD.value));
   planner.reclampAll();
   outW.textContent = room.width.toFixed(1) + ' m';
   outD.textContent = room.depth.toFixed(1) + ' m';
+  updateArea();
 };
 inW.addEventListener('input', onSize);
 inD.addEventListener('input', onSize);
@@ -264,6 +286,7 @@ function syncRoomUI(): void {
   wallColorsEl.querySelectorAll<HTMLElement>('.swatch').forEach((s) =>
     s.classList.toggle('active', Number(s.dataset.color) === room.wallColor)
   );
+  updateArea();
 }
 
 // —————————————————————— PASEK NARZĘDZI ——————————————————————
@@ -303,13 +326,31 @@ $<HTMLButtonElement>('#btn-clear').addEventListener('click', () => {
   if (planner.items.length && confirm('Usunąć wszystkie meble z projektu?')) planner.clear();
 });
 
-$<HTMLButtonElement>('#btn-save').addEventListener('click', () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot()));
-  toast('💾 Projekt zapisany');
+$<HTMLButtonElement>('#btn-save').addEventListener('click', async () => {
+  const snap = snapshot();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  const res = await api.saveCart(snap);
+  if (res) {
+    localStorage.setItem(CLOUD_ID_KEY, res.id);
+    toast(`💾 Zapisano w chmurze (#${res.id.slice(0, 6)})`);
+  } else {
+    toast('💾 Zapisano lokalnie');
+  }
 });
 
-$<HTMLButtonElement>('#btn-load').addEventListener('click', () => {
-  if (loadProject()) { pushHistory(); toast('📂 Projekt wczytany'); }
+$<HTMLButtonElement>('#btn-load').addEventListener('click', async () => {
+  const cloudId = localStorage.getItem(CLOUD_ID_KEY);
+  if (cloudId) {
+    const r = await api.loadCart(cloudId);
+    if (r?.snapshot) {
+      applyState(r.snapshot);
+      renderCatalog(currentCat);
+      pushHistory();
+      toast('📂 Wczytano z chmury');
+      return;
+    }
+  }
+  if (loadProject()) { pushHistory(); toast('📂 Wczytano lokalnie'); }
   else toast('Brak zapisanego projektu');
 });
 
@@ -394,10 +435,79 @@ planner.onChange = () => {
   checkoutBtn.disabled = planner.items.length === 0;
 };
 
-checkoutBtn.addEventListener('click', () => {
-  const total = planner.items.reduce((s, i) => s + i.product.price, 0);
+function orderItems(): OrderPayloadItem[] {
+  const map = new Map<string, OrderPayloadItem>();
+  for (const it of planner.items) {
+    const e = map.get(it.product.id) ?? { productId: it.product.id, name: it.product.name, price: it.product.price, qty: 0 };
+    e.qty++;
+    map.set(it.product.id, e);
+  }
+  return [...map.values()];
+}
+
+checkoutBtn.addEventListener('click', async () => {
+  if (!planner.items.length) return;
   if (planner.hasOverlaps()) { toast('⚠ Popraw kolizje mebli przed zamówieniem'); return; }
-  toast(`✅ Zamówienie złożone — ${planner.items.length} mebli, ${zl.format(total)}`);
+  const total = planner.items.reduce((s, i) => s + i.product.price, 0);
+  checkoutBtn.disabled = true;
+  const res = await api.placeOrder({ items: orderItems(), total, room: room.kind });
+  checkoutBtn.disabled = false;
+  if (res) {
+    toast(`✅ Zamówienie #${res.orderNo} przyjęte — ${zl.format(total)}`);
+    refreshApiStatus();
+  } else {
+    toast(`✅ Zamówienie złożone (offline) — ${zl.format(total)}`);
+  }
+});
+
+async function refreshApiStatus(): Promise<void> {
+  const el = $<HTMLSpanElement>('#api-status');
+  const h = await api.health();
+  if (h) {
+    el.textContent = `● API · ${h.orders} zam.`;
+    el.classList.add('online');
+    el.classList.remove('offline');
+    el.title = 'Backend koszyka online';
+  } else {
+    el.textContent = '● API offline';
+    el.classList.add('offline');
+    el.classList.remove('online');
+    el.title = 'Backend offline — uruchom „npm run dev:full”. Aplikacja działa lokalnie.';
+  }
+}
+
+// —————————————————————— HISTORIA ZAMÓWIEŃ (modal) ——————————————————————
+const ordersModal = $<HTMLDivElement>('#orders-modal');
+const ordersBody = $<HTMLDivElement>('#orders-body');
+const dtFmt = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+
+function renderOrder(o: OrderSummary): string {
+  const roomName = o.room === 'kitchen' ? 'Kuchnia' : o.room === 'living' ? 'Salon' : '—';
+  return `<div class="order-row">
+    <div><div class="order-no">Zamówienie #${o.orderNo}</div>
+    <div class="order-meta">${dtFmt.format(new Date(o.createdAt))} · ${roomName} · ${o.count} mebli</div></div>
+    <div class="order-total">${zl.format(o.total)}</div>
+  </div>`;
+}
+
+$<HTMLButtonElement>('#btn-orders').addEventListener('click', async () => {
+  ordersBody.innerHTML = '<div class="orders-empty">Ładowanie…</div>';
+  ordersModal.classList.add('show');
+  const orders = await api.listOrders();
+  if (!orders) {
+    ordersBody.innerHTML = '<div class="orders-empty">Backend offline. Uruchom „npm run dev:full”, aby zapisywać i przeglądać zamówienia.</div>';
+    return;
+  }
+  if (orders.length === 0) {
+    ordersBody.innerHTML = '<div class="orders-empty">Brak zamówień. Złóż pierwsze przyciskiem „Zamów aranżację”.</div>';
+    return;
+  }
+  ordersBody.innerHTML = orders.slice().reverse().map(renderOrder).join('');
+});
+
+$<HTMLButtonElement>('#orders-close').addEventListener('click', () => ordersModal.classList.remove('show'));
+ordersModal.addEventListener('click', (e) => {
+  if (e.target === ordersModal) ordersModal.classList.remove('show');
 });
 
 // —————————————————————— SKRÓTY KLAWISZOWE ——————————————————————
@@ -408,7 +518,14 @@ window.addEventListener('keydown', (e) => {
   else if (ctrl && e.key.toLowerCase() === 'd') { e.preventDefault(); planner.duplicateSelected(); }
   else if (e.key === 'r' || e.key === 'R') planner.rotateSelected(Math.PI / 4);
   else if (e.key === 'Delete' || e.key === 'Backspace') planner.deleteSelected();
-  else if (e.key === 'Escape') planner.select(null);
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); planner.nudgeSelected(-1, 0); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); planner.nudgeSelected(1, 0); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); planner.nudgeSelected(0, -1); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); planner.nudgeSelected(0, 1); }
+  else if (e.key === 'Escape') {
+    if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
+    else planner.select(null);
+  }
 });
 
 // —————————————————————— TOAST ——————————————————————
@@ -422,9 +539,26 @@ function toast(msg: string): void {
 }
 
 // —————————————————————— START ——————————————————————
+const loadingEl = $<HTMLDivElement>('#loading');
+const loadingText = $<HTMLDivElement>('#loading-text');
+
 renderCatalog('living');
 syncRoomUI();
 planner.onChange();
-if (localStorage.getItem(STORAGE_KEY)) loadProject();
-pushHistory(); // stan początkowy w historii
-updateHistoryButtons();
+
+(async () => {
+  try {
+    await preloadModels((loaded, total) => {
+      loadingText.textContent = `Ładowanie modeli 3D… ${loaded}/${total}`;
+    });
+  } catch (e) {
+    console.error('Błąd ładowania modeli .glb — uruchom „npm run models”.', e);
+    loadingText.textContent = 'Błąd ładowania modeli. Uruchom „npm run models”.';
+    return;
+  }
+  loadingEl.classList.add('hide');
+  if (localStorage.getItem(STORAGE_KEY)) loadProject();
+  pushHistory(); // stan początkowy w historii
+  updateHistoryButtons();
+  refreshApiStatus();
+})();

@@ -3,7 +3,10 @@ import * as THREE from 'three';
 /**
  * Proceduralna fabryka mebli. Każdy builder zwraca THREE.Group, którego
  * układ jest tak dobrany, że y=0 leży na podłodze (mebel „stoi” na Y=0).
- * Dzięki temu ustawienie mebla w pokoju sprowadza się do zmiany position.x/z.
+ *
+ * Materiały, które mają podlegać zmianie koloru, są oznaczane nazwą `primary`.
+ * Dzięki temu po wyeksportowaniu modeli do .glb (patrz scripts/export-glb.mjs)
+ * loader potrafi odnaleźć i przekolorować właściwe materiały po nazwie.
  */
 
 function mat(color: number, opts: { rough?: number; metal?: number } = {}): THREE.MeshStandardMaterial {
@@ -12,6 +15,13 @@ function mat(color: number, opts: { rough?: number; metal?: number } = {}): THRE
     roughness: opts.rough ?? 0.85,
     metalness: opts.metal ?? 0.0,
   });
+}
+
+/** Materiał kolorowalny — oznaczony nazwą `primary`. */
+function primary(color: number, opts: { rough?: number; metal?: number } = {}): THREE.MeshStandardMaterial {
+  const m = mat(color, opts);
+  m.name = 'primary';
+  return m;
 }
 
 function box(w: number, h: number, d: number, material: THREE.Material): THREE.Mesh {
@@ -35,7 +45,7 @@ const HANDLE = mat(0x9aa0a6, { rough: 0.3, metal: 0.9 });
 
 function sofa(color = 0x8a8f98): THREE.Group {
   const g = new THREE.Group();
-  const fabric = mat(color, { rough: 0.95 });
+  const fabric = primary(color, { rough: 0.95 });
   const W = 2.1, D = 0.95;
 
   const base = box(W, 0.32, D, fabric);
@@ -52,7 +62,6 @@ function sofa(color = 0x8a8f98): THREE.Group {
     g.add(arm);
   }
 
-  // poduchy siedziska
   for (const cx of [-0.52, 0, 0.52]) {
     const cushion = box(0.62, 0.16, D - 0.24, fabric);
     cushion.position.set(cx, 0.46, 0.02);
@@ -69,7 +78,7 @@ function sofa(color = 0x8a8f98): THREE.Group {
 
 function armchair(color = 0xc9a24b): THREE.Group {
   const g = new THREE.Group();
-  const fabric = mat(color, { rough: 0.95 });
+  const fabric = primary(color, { rough: 0.95 });
   const W = 0.85, D = 0.9;
   const base = box(W, 0.3, D, fabric);
   base.position.y = 0.25;
@@ -95,7 +104,7 @@ function armchair(color = 0xc9a24b): THREE.Group {
 
 function coffeeTable(color = 0x6b4f3a): THREE.Group {
   const g = new THREE.Group();
-  const wood = mat(color);
+  const wood = primary(color);
   const top = box(1.1, 0.08, 0.6, wood);
   top.position.y = 0.4;
   g.add(top);
@@ -109,16 +118,16 @@ function coffeeTable(color = 0x6b4f3a): THREE.Group {
 
 function tvStand(color = 0xeef0f2): THREE.Group {
   const g = new THREE.Group();
-  const body = mat(color);
+  const body = primary(color);
+  const front = primary(color, { rough: 0.6 });
   const W = 1.6, H = 0.45, D = 0.4;
   const cab = box(W, H, D, body);
   cab.position.y = H / 2 + 0.05;
   g.add(cab);
-  // szuflady — linie frontów
   for (const dx of [-0.4, 0.4]) {
-    const front = box(0.7, H - 0.1, 0.02, mat(color, { rough: 0.6 }));
-    front.position.set(dx, H / 2 + 0.05, D / 2 + 0.001);
-    g.add(front);
+    const f = box(0.7, H - 0.1, 0.02, front);
+    f.position.set(dx, H / 2 + 0.05, D / 2 + 0.001);
+    g.add(f);
     const h = box(0.18, 0.02, 0.02, HANDLE);
     h.position.set(dx, H / 2 + 0.05, D / 2 + 0.02);
     g.add(h);
@@ -133,14 +142,15 @@ function tvStand(color = 0xeef0f2): THREE.Group {
 
 function bookshelf(color = 0xb08d57): THREE.Group {
   const g = new THREE.Group();
-  const wood = mat(color);
+  const wood = primary(color);
+  const backMat = primary(color, { rough: 0.95 });
   const W = 1.0, H = 1.8, D = 0.35, t = 0.04;
   for (const sx of [-1, 1]) {
     const side = box(t, H, D, wood);
     side.position.set(sx * (W / 2 - t / 2), H / 2, 0);
     g.add(side);
   }
-  const back = box(W, H, t / 2, mat(color, { rough: 0.95 }));
+  const back = box(W, H, t / 2, backMat);
   back.position.set(0, H / 2, -D / 2 + t / 4);
   g.add(back);
   const shelves = 5;
@@ -154,7 +164,7 @@ function bookshelf(color = 0xb08d57): THREE.Group {
 
 function floorLamp(color = 0x2f3640): THREE.Group {
   const g = new THREE.Group();
-  const metal = mat(color, { rough: 0.4, metal: 0.6 });
+  const metal = primary(color, { rough: 0.4, metal: 0.6 });
   const base = cyl(0.16, 0.18, 0.04, metal);
   base.position.y = 0.02;
   g.add(base);
@@ -173,14 +183,15 @@ function floorLamp(color = 0x2f3640): THREE.Group {
 
 function rug(color = 0xd9cbb8): THREE.Group {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.03, 2.0), mat(color, { rough: 1.0 }));
+  const rugMat = primary(color, { rough: 1.0 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.03, 2.0), rugMat);
   m.position.y = 0.015;
   m.receiveShadow = true;
   g.add(m);
   const border = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.031, 1.8), mat(0xffffff, { rough: 1.0 }));
   border.position.y = 0.016;
   g.add(border);
-  const inner = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.032, 1.6), mat(color, { rough: 1.0 }));
+  const inner = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.032, 1.6), rugMat);
   inner.position.y = 0.017;
   g.add(inner);
   return g;
@@ -194,13 +205,16 @@ function plant(color = 0x3f8f4f): THREE.Group {
   const soil = cyl(0.19, 0.19, 0.03, mat(0x2b2118));
   soil.position.y = 0.35;
   g.add(soil);
-  const leafMat = mat(color, { rough: 0.8 });
-  for (let i = 0; i < 7; i++) {
+  const leafMat = primary(color, { rough: 0.8 });
+  // rozkład liści deterministyczny (bez Math.random — stabilny eksport .glb)
+  const N = 7;
+  for (let i = 0; i < N; i++) {
     const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), leafMat);
     leaf.scale.set(1, 1.6, 0.4);
-    const a = (i / 7) * Math.PI * 2;
-    leaf.position.set(Math.cos(a) * 0.14, 0.7 + Math.random() * 0.35, Math.sin(a) * 0.14);
-    leaf.rotation.set((Math.random() - 0.5) * 0.6, a, (Math.random() - 0.5) * 0.6);
+    const a = (i / N) * Math.PI * 2;
+    const jitter = ((i * 37) % 100) / 100;
+    leaf.position.set(Math.cos(a) * 0.14, 0.72 + jitter * 0.32, Math.sin(a) * 0.14);
+    leaf.rotation.set((jitter - 0.5) * 0.6, a, ((i % 3) - 1) * 0.3);
     leaf.castShadow = true;
     g.add(leaf);
   }
@@ -211,7 +225,7 @@ function plant(color = 0x3f8f4f): THREE.Group {
 
 function cabinetBody(color: number, w: number, h: number, d: number, worktop = true): THREE.Group {
   const g = new THREE.Group();
-  const body = mat(color, { rough: 0.7 });
+  const body = primary(color, { rough: 0.7 });
   const carcass = box(w, h - (worktop ? 0.04 : 0), d, body);
   carcass.position.y = (h - (worktop ? 0.04 : 0)) / 2;
   g.add(carcass);
@@ -225,7 +239,7 @@ function cabinetBody(color: number, w: number, h: number, d: number, worktop = t
 
 function baseCabinet(color = 0xeef0f2): THREE.Group {
   const g = cabinetBody(color, 0.6, 0.9, 0.6);
-  const front = box(0.5, 0.5, 0.02, mat(color, { rough: 0.5 }));
+  const front = box(0.5, 0.5, 0.02, primary(color, { rough: 0.5 }));
   front.position.set(0, 0.55, 0.3);
   g.add(front);
   const handle = box(0.02, 0.15, 0.02, HANDLE);
@@ -236,8 +250,9 @@ function baseCabinet(color = 0xeef0f2): THREE.Group {
 
 function tallCabinet(color = 0xeef0f2): THREE.Group {
   const g = cabinetBody(color, 0.6, 2.1, 0.6, false);
+  const frontMat = primary(color, { rough: 0.5 });
   for (const dy of [0.5, 1.55]) {
-    const front = box(0.52, dy < 1 ? 0.9 : 1.0, 0.02, mat(color, { rough: 0.5 }));
+    const front = box(0.52, dy < 1 ? 0.9 : 1.0, 0.02, frontMat);
     front.position.set(0, dy, 0.3);
     g.add(front);
     const handle = box(0.02, 0.18, 0.02, HANDLE);
@@ -249,11 +264,10 @@ function tallCabinet(color = 0xeef0f2): THREE.Group {
 
 function fridge(color = 0xc3c7cc): THREE.Group {
   const g = new THREE.Group();
-  const steel = mat(color, { rough: 0.35, metal: 0.7 });
+  const steel = primary(color, { rough: 0.35, metal: 0.7 });
   const body = box(0.7, 1.9, 0.7, steel);
   body.position.y = 0.95;
   g.add(body);
-  // linia podziału drzwi
   const split = box(0.72, 0.015, 0.72, mat(0x8a8d92, { metal: 0.6 }));
   split.position.y = 1.25;
   g.add(split);
@@ -267,7 +281,7 @@ function fridge(color = 0xc3c7cc): THREE.Group {
 
 function stove(color = 0xc3c7cc): THREE.Group {
   const g = new THREE.Group();
-  const steel = mat(color, { rough: 0.4, metal: 0.6 });
+  const steel = primary(color, { rough: 0.4, metal: 0.6 });
   const body = box(0.6, 0.85, 0.6, steel);
   body.position.y = 0.425;
   g.add(body);
@@ -310,8 +324,9 @@ function island(color = 0x2f3640): THREE.Group {
   const top = box(1.7, 0.05, 1.0, mat(0xe6e2da, { rough: 0.4 }));
   top.position.y = 0.9;
   g.add(top);
+  const frontMat = primary(color, { rough: 0.5 });
   for (const dx of [-0.4, 0.4]) {
-    const front = box(0.5, 0.5, 0.02, mat(color, { rough: 0.5 }));
+    const front = box(0.5, 0.5, 0.02, frontMat);
     front.position.set(dx, 0.55, 0.45);
     g.add(front);
     const handle = box(0.15, 0.02, 0.02, HANDLE);
@@ -323,7 +338,7 @@ function island(color = 0x2f3640): THREE.Group {
 
 function barStool(color = 0x2f3640): THREE.Group {
   const g = new THREE.Group();
-  const m = mat(color, { rough: 0.6 });
+  const m = primary(color, { rough: 0.6 });
   const seat = cyl(0.2, 0.2, 0.05, m, 24);
   seat.position.y = 0.72;
   g.add(seat);
@@ -342,7 +357,7 @@ function barStool(color = 0x2f3640): THREE.Group {
 
 function diningTable(color = 0xb08d57): THREE.Group {
   const g = new THREE.Group();
-  const wood = mat(color);
+  const wood = primary(color);
   const top = box(1.8, 0.06, 0.9, wood);
   top.position.y = 0.74;
   g.add(top);
@@ -356,7 +371,7 @@ function diningTable(color = 0xb08d57): THREE.Group {
 
 function diningChair(color = 0xb08d57): THREE.Group {
   const g = new THREE.Group();
-  const wood = mat(color);
+  const wood = primary(color);
   const seat = box(0.45, 0.05, 0.45, wood);
   seat.position.y = 0.46;
   g.add(seat);
@@ -371,11 +386,82 @@ function diningChair(color = 0xb08d57): THREE.Group {
   return g;
 }
 
+// ————————————————————— MEBLE WISZĄCE —————————————————————
+// Modele wiszące są wyśrodkowane w pionie względem y=0 (planer ustawia
+// position.y = mountHeight). Tył przy z=-D/2, front skierowany na +Z (do wnętrza).
+
+function wallCabinet(color = 0xeef0f2): THREE.Group {
+  const g = new THREE.Group();
+  const body = primary(color, { rough: 0.7 });
+  const W = 0.6, H = 0.7, D = 0.35;
+  g.add(box(W, H, D, body));
+  for (const sx of [-1, 1]) {
+    const front = box(W / 2 - 0.02, H - 0.04, 0.02, primary(color, { rough: 0.5 }));
+    front.position.set(sx * W / 4, 0, D / 2);
+    g.add(front);
+    const handle = box(0.02, 0.12, 0.02, HANDLE);
+    handle.position.set(sx * 0.02, -H / 2 + 0.1, D / 2 + 0.02);
+    g.add(handle);
+  }
+  return g;
+}
+
+function wallTv(color = 0x1c1c1e): THREE.Group {
+  const g = new THREE.Group();
+  const W = 1.2, H = 0.72, D = 0.06;
+  const frame = box(W, H, 0.04, primary(color, { rough: 0.4, metal: 0.3 }));
+  g.add(frame);
+  const screenMat = new THREE.MeshStandardMaterial({ color: 0x0a1420, emissive: 0x14324f, emissiveIntensity: 0.5, roughness: 0.2, metalness: 0.1 });
+  const screen = box(W - 0.06, H - 0.06, 0.02, screenMat);
+  screen.position.z = D / 2 - 0.01;
+  g.add(screen);
+  return g;
+}
+
+function wallArt(color = 0x2f3640): THREE.Group {
+  const g = new THREE.Group();
+  const W = 0.8, H = 0.6;
+  const frame = box(W, H, 0.04, primary(color, { rough: 0.6 }));
+  g.add(frame);
+  const canvasBg = box(W - 0.08, H - 0.08, 0.01, mat(0xf4efe6, { rough: 0.9 }));
+  canvasBg.position.z = 0.025;
+  g.add(canvasBg);
+  // prosta „grafika” z kilku kolorowych plam
+  const palette = [0x3f7d75, 0xc9a24b, 0xe05555, 0x3b4a63];
+  for (let i = 0; i < 4; i++) {
+    const patch = box(0.14, 0.28, 0.005, mat(palette[i], { rough: 0.8 }));
+    patch.position.set(-0.24 + i * 0.16, ((i % 2) - 0.5) * 0.12, 0.03);
+    g.add(patch);
+  }
+  return g;
+}
+
+function wallLamp(color = 0x2f3640): THREE.Group {
+  const g = new THREE.Group();
+  const metal = primary(color, { rough: 0.4, metal: 0.6 });
+  const plate = box(0.12, 0.18, 0.03, metal);
+  plate.position.z = -0.14;
+  g.add(plate);
+  const arm = cyl(0.015, 0.015, 0.18, metal, 8);
+  arm.rotation.x = Math.PI / 2;
+  arm.position.z = -0.06;
+  g.add(arm);
+  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xf3e9d2, emissive: 0xffe1a8, emissiveIntensity: 0.7, roughness: 0.9 });
+  const shade = cyl(0.09, 0.06, 0.14, shadeMat, 16);
+  shade.position.set(0, 0.02, 0.05);
+  g.add(shade);
+  const bulb = new THREE.PointLight(0xffe1a8, 6, 4, 2);
+  bulb.position.set(0, 0.02, 0.1);
+  g.add(bulb);
+  return g;
+}
+
 // ————————————————————— REJESTR —————————————————————
 
 const builders: Record<string, (color?: number) => THREE.Group> = {
   sofa, armchair, coffeeTable, tvStand, bookshelf, floorLamp, rug, plant,
   baseCabinet, tallCabinet, fridge, stove, sink, island, barStool, diningTable, diningChair,
+  wallCabinet, wallTv, wallArt, wallLamp,
 };
 
 function placeholder(color = 0xff00ff): THREE.Group {
@@ -384,7 +470,7 @@ function placeholder(color = 0xff00ff): THREE.Group {
   return g;
 }
 
-/** Buduje model 3D dla podanego klucza z opcjonalnym kolorem. */
+/** Buduje proceduralny model 3D dla podanego klucza (używane też przy eksporcie .glb). */
 export function buildModel(model: string, color?: number): THREE.Group {
   const builder = builders[model] ?? placeholder;
   return builder(color);

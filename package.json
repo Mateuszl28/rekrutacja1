@@ -6,6 +6,9 @@
   "description": "Sklep meblowy 3D ze zintegrowanym planerem pomieszczeń (salon/kuchnia) — vanilla Three.js + TypeScript + Vite",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.mjs",
+    "dev:full": "concurrently -k -n web,api -c cyan,magenta \"vite\" \"node server/index.mjs\"",
+    "models": "node scripts/export-glb.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
@@ -15,6 +18,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.170.0",
+    "concurrently": "^9.1.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   }

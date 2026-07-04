@@ -15,6 +15,10 @@ export interface ProductDef {
   /** Dostępne kolory (hex). Pierwszy jest domyślny. */
   colors: number[];
   description: string;
+  /** Sposób montażu: podłogowy (domyślny) lub wiszący na ścianie. */
+  mount?: 'floor' | 'wall';
+  /** Wysokość środka mebla dla montażu ściennego (m). */
+  mountHeight?: number;
 }
 
 /** Zserializowany stan pojedynczego mebla w projekcie (do zapisu/odczytu). */

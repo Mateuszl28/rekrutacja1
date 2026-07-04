@@ -4,63 +4,57 @@ Sklep meblowy w 3D ze **zintegrowanym planerem pomieszczeń** (salon / kuchnia).
 Przeglądasz katalog, wstawiasz meble do pokoju 3D, aranżujesz je na żywo, a to co
 ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapłaty.
 
-> Zadanie rekrutacyjne — działające demo. Stack: **vanilla Three.js + TypeScript + Vite**.
-> Modele mebli generowane są proceduralnie z brył Three.js, więc projekt jest w pełni
-> samowystarczalny (żadnych zewnętrznych plików `.glb`).
+> Zadanie rekrutacyjne — działające demo. Stack: **vanilla Three.js + TypeScript + Vite**
+> na froncie i **lekki backend koszyka** (wbudowany `http` Node, bez zależności).
 
 ## Funkcje
 
-- 🛒 **Katalog 3D** z 17 meblami w dwóch kategoriach (salon / kuchnia), warianty kolorów, ceny w PLN.
+- 🛒 **Katalog 3D** z 21 meblami w dwóch kategoriach (salon / kuchnia), warianty kolorów, ceny w PLN.
+- 📦 **Realne modele `.glb`** — ładowane `GLTFLoaderem` z `public/models/` (pełny pipeline glTF, offline).
 - 🧩 **Planer = koszyk** — meble ustawione w pokoju tworzą listę zamówienia z sumą.
-- 🖱️ **Aranżacja w scenie** — dodawanie klikiem lub **przeciągnij-i-upuść**, przesuwanie po podłodze, obrót, zmiana koloru w locie, usuwanie, **duplikowanie**.
-- 🚧 **Wykrywanie kolizji** — nakładające się meble podświetlają się na czerwono i blokują zamówienie.
+- 🖱️ **Aranżacja w scenie** — dodawanie klikiem lub **przeciągnij-i-upuść**, przesuwanie po podłodze, obrót, zmiana koloru w locie, usuwanie, **duplikowanie**, **strzałki** do precyzyjnego przesuwania.
+- 🧱 **Meble wiszące** — szafki górne, TV, obraz i kinkiet **przylegają do ścian** i ślizgają się po nich; kolizje uwzględniają wysokość (górne nie kolidują z dolnymi).
+- 🚧 **Kolizje blokujące ruch** — mebel nie wjeżdża w inny; „ślizga się” po przeszkodzie (rozdzielenie osi). Przy dodawaniu automatycznie szuka wolnego miejsca.
+- ✨ **Realistyczna scena** — proceduralne tekstury podłóg (drewno / płytki), mapa środowiska (odbicia na metalu/stali), tone mapping ACES, cienie.
 - 🧲 **Przyciąganie do siatki**, granice pokoju z uwzględnieniem obrotu.
 - ↶↷ **Cofnij / Ponów** (pełna historia zmian).
-- 🏠 **Konfigurowalny pokój** — rozmiar (szer./gł.) i kolor ścian; presety salon/kuchnia.
+- 🏠 **Konfigurowalny pokój** — rozmiar (szer./gł.), kolor ścian, powierzchnia w m²; presety salon/kuchnia.
 - 🎥 **Kamera** — orbita, zoom, rzut z góry (2D), reset widoku.
-- 💾 **Zapis / odczyt** projektu (localStorage) i **zrzut PNG** aranżacji.
+- ☁️ **Backend koszyka** — składanie zamówień (numer + trwały zapis), **historia zamówień** i zapis/odczyt projektu w chmurze; front działa też offline (fallback do localStorage).
+- 💾 **Zapis / odczyt** projektu i **zrzut PNG** aranżacji.
 
 ## Uruchomienie
 
 ```bash
 npm install
-npm run dev
+npm run dev          # sam frontend (http://localhost:5173) — działa też bez backendu
 ```
 
-Aplikacja otworzy się automatycznie na `http://localhost:5173`.
-
-Inne skrypty:
+Aby uruchomić **z backendem koszyka** (zamówienia, historia, zapis w chmurze):
 
 ```bash
-npm run build      # produkcyjny build (type-check + vite build → dist/)
-npm run preview    # podgląd builda produkcyjnego
-npm run typecheck  # sama kontrola typów TypeScript
+npm run dev:full     # frontend + backend (http://localhost:3031) równolegle
 ```
 
-## Jak używać
+Pozostałe skrypty:
 
-1. **Wybierz pomieszczenie** u góry: 🛋️ Salon lub 🍳 Kuchnia — zmienia się wielkość
-   pokoju, podłoga i katalog.
-2. **Dodaj meble** — kliknij kartę produktu w katalogu (po lewej). Mebel pojawi się
-   w pokoju i od razu trafi do koszyka (po prawej).
-3. **Aranżuj** w scenie 3D:
-   - **przeciągnij** mebel myszą, aby go przesunąć (przyciąganie do siatki),
-   - **kliknij** mebel, aby go zaznaczyć — pojawi się panel z kolorami i akcjami,
-   - **obróć** klawiszem `R` lub przyciskiem ↻,
-   - **usuń** klawiszem `Delete` lub ikoną 🗑️,
-   - **odznacz** klawiszem `Esc`.
-4. **Obracaj kamerę** — przeciągnij tło (lewy przycisk), przybliżaj kółkiem, przesuwaj
-   prawym przyciskiem. Przycisk **Widok 2D** przełącza rzut z góry.
-5. **Kolor** — próbki koloru na karcie w katalogu (przed dodaniem) lub w panelu
-   zaznaczonego mebla (zmiana w locie).
-6. **Zapisz / Wczytaj** projekt (localStorage) oraz **Zamów aranżację** (podsumowanie).
+```bash
+npm run server       # sam backend koszyka
+npm run models       # regeneracja modeli .glb do public/models/
+npm run build        # produkcyjny build (type-check + vite build → dist/)
+npm run typecheck    # sama kontrola typów TypeScript
+```
+
+> Modele `.glb` są już wygenerowane i wersjonowane w `public/models/`, więc aplikacja
+> działa od razu po `npm install`. `npm run models` uruchamiaj tylko po zmianie mebli.
 
 ## Sterowanie
 
 | Akcja | Sposób |
 |---|---|
 | Dodaj mebel | klik karty w katalogu lub przeciągnij ją na scenę |
-| Przesuń | przeciągnij mebel myszą |
+| Przesuń | przeciągnij mebel myszą (wiszące — po ścianie) |
+| Precyzyjny ruch | strzałki ← ↑ → ↓ |
 | Zaznacz / odznacz | klik mebla / `Esc` lub klik w podłogę |
 | Obróć o 45° | `R` lub ↻ |
 | Duplikuj | `Ctrl+D` lub ⧉ |
@@ -68,38 +62,64 @@ npm run typecheck  # sama kontrola typów TypeScript
 | Cofnij / Ponów | `Ctrl+Z` / `Ctrl+Y` lub ↶ ↷ |
 | Orbita kamery | przeciągnij tło |
 | Zoom / pan | kółko / prawy przycisk |
-| Widok z góry | przycisk „Widok 2D”, reset → 🎯 |
-| Przyciąganie do siatki | przycisk „🧲 Siatka” |
+| Widok z góry / reset | „Widok 2D” / 🎯 |
+| Przyciąganie do siatki | „🧲 Siatka” |
+| Historia zamówień | „📋 Zamówienia” |
 | Zrzut ekranu | 📸 |
 
 ## Architektura
 
 ```
 src/
-├── main.ts                 # orkiestracja: budowa UI, podpięcie zdarzeń, koszyk
+├── main.ts                 # orkiestracja: UI, zdarzenia, koszyk, historia, backend
 ├── style.css               # motyw i layout aplikacji
 ├── types.ts                # wspólne typy domenowe
+├── api.ts                  # klient backendu (z fallbackiem offline)
 ├── data/
 │   └── products.ts         # katalog produktów (dane mockowane)
 ├── furniture/
-│   └── factory.ts          # proceduralne modele 3D mebli (bryły Three.js)
+│   ├── factory.ts          # proceduralne modele mebli (bryły Three.js)
+│   └── loader.ts           # ładowanie/instancjonowanie modeli .glb (GLTFLoader)
 └── scene/
-    ├── SceneManager.ts     # renderer, kamera, światło, pętla, widok 2D/3D
-    ├── Room.ts             # parametryczny pokój (podłoga, ściany, presety)
-    └── Planner.ts          # dodawanie, zaznaczanie, drag, obrót, kolor, zapis
+    ├── SceneManager.ts     # renderer, kamera, światło, env-map, pętla, widok 2D/3D
+    ├── Room.ts             # parametryczny pokój (podłoga z teksturą, ściany, presety)
+    ├── textures.ts         # proceduralne tekstury podłóg (canvas)
+    └── Planner.ts          # dodawanie, drag, kolizje 3D, montaż ścienny, zapis
+scripts/
+└── export-glb.ts           # eksport fabryki mebli do public/models/*.glb (GLTFExporter)
+server/
+└── index.mjs               # backend koszyka (Node http, bez zależności)
 ```
 
-**Kluczowe decyzje projektowe**
+## Backend — API
 
-- **Planer = koszyk.** Sceną zakupu jest sam pokój — meble ustawione w 3D tworzą
-  listę zamówienia z ceną. To integruje sklep z planerem, zamiast trzymać je osobno.
-- **Modele proceduralne.** Każdy mebel to `THREE.Group` złożony z prymitywów, z osią
-  `y=0` na podłodze — dzięki temu wstawianie sprowadza się do ustawienia `x/z`.
-- **Interakcja bez konfliktów.** Podczas przeciągania mebla `OrbitControls` jest
-  chwilowo wyłączany (raycast rozróżnia klik w mebel od klika w tło).
-- **Kolizje z pokojem.** Meble są przycinane do wnętrza pokoju z uwzględnieniem obrotu.
+Domyślnie `http://localhost:3031`, dane trwałe w `server/data.json`. Frontend łączy się
+przez proxy Vite (`/api`).
+
+| Metoda | Ścieżka | Opis |
+|---|---|---|
+| GET | `/api/health` | status + liczba zamówień |
+| GET | `/api/orders` | lista zamówień (podsumowania) |
+| POST | `/api/orders` | złóż zamówienie `{ items, total, room }` → `{ orderNo, createdAt }` |
+| POST | `/api/cart` | zapisz projekt `{ snapshot }` → `{ id }` |
+| GET | `/api/cart/:id` | wczytaj zapisany projekt |
+
+## Kluczowe decyzje projektowe
+
+- **Planer = koszyk.** Sceną zakupu jest sam pokój — meble ustawione w 3D tworzą listę
+  zamówienia z ceną. To integruje sklep z planerem, zamiast trzymać je osobno.
+- **Pipeline glTF, offline.** Meble są autorsko generowane proceduralnie, ale w aplikacji
+  przechodzą przez prawdziwe pliki `.glb` (GLTFExporter → GLTFLoader → cache → klon).
+  Aby użyć własnego/kupionego modelu, wystarczy podmienić `public/models/<klucz>.glb`.
+- **Zmiana koloru po nazwie materiału.** Materiały kolorowalne są oznaczone `primary`,
+  co przetrwa round-trip do `.glb` — kolor zmieniamy na sklonowanej instancji.
+- **Kolizje 3D blokujące ruch.** Analityczne AABB w osiach X/Z/Y — mebel nie wjeżdża
+  w inny, ślizga się po przeszkodzie, a szafki górne nie kolidują z dolnymi.
+- **Odporność na brak backendu.** Każde wywołanie API ma fallback (localStorage / tryb
+  offline), więc `npm run dev` działa samodzielnie.
 
 ## Możliwa rozbudowa
 
-Backend (koszyk/zamówienia w bazie), realne modele `.glb` z CDN, kolizje między
-meblami, wymiarowanie i eksport rzutu, konta użytkowników, warianty rozmiarów.
+Baza danych zamiast pliku JSON, konta użytkowników i zapis wielu projektów, wymiarowanie
+i eksport rzutu 2D (PDF), realne modele `.glb` z CDN, snapowanie mebli do siebie, warianty
+rozmiarowe produktów, płatności.
