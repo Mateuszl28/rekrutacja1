@@ -12,6 +12,7 @@ import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
 const STORAGE_KEY = 'meblelab3d-projekt';
 const CLOUD_ID_KEY = 'meblelab3d-cloud-id';
+const THEME_KEY = 'meblelab3d-theme';
 const WALL_COLORS = [0xe7ded3, 0xeef1f4, 0xd7e3dd, 0xe6d9d2, 0xdfe3ea, 0xcdd3da, 0x3b4a63, 0x2f3640];
 
 const zl = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 });
@@ -42,6 +43,7 @@ app.innerHTML = `
         <button class="btn" id="btn-view" title="Rzut z góry / 3D">⬜ 2D</button>
         <button class="btn active" id="btn-snap" title="Przyciąganie do siatki">🧲</button>
         <button class="btn icon" id="btn-reset" title="Reset kamery">🎯</button>
+        <button class="btn icon" id="btn-theme" title="Motyw jasny / ciemny">🌗</button>
         <button class="btn icon" id="btn-help" title="Pomoc / skróty">❓</button>
       </div>
       <button class="btn" id="btn-templates" title="Gotowe aranżacje">✨ Aranżacje</button>
@@ -536,6 +538,21 @@ $<HTMLButtonElement>('#btn-reset').addEventListener('click', () => {
   btnView.textContent = '⬜ Widok 2D';
   btnView.classList.remove('active');
   sm.setPerspectiveView();
+});
+
+// przełącznik motywu jasny / ciemny (zapisywany)
+const btnTheme = $<HTMLButtonElement>('#btn-theme');
+function syncThemeBtn(): void {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  btnTheme.textContent = light ? '🌙' : '☀️';
+  btnTheme.title = light ? 'Włącz tryb ciemny' : 'Włącz tryb jasny';
+}
+syncThemeBtn();
+btnTheme.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem(THEME_KEY, next); } catch { /* brak localStorage */ }
+  syncThemeBtn();
 });
 
 $<HTMLButtonElement>('#btn-shot').addEventListener('click', () => {

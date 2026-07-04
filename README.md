@@ -35,6 +35,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🧾 **Wydruk/PDF** podsumowania zamówienia.
 - 📐 **Rzut 2D z wymiarami** — schematyczny widok z góry (SVG, skala zachowana) z gabarytami mebli, numeracją, legendą i wymiarami ścian; gotowy do druku/PDF.
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
+- 🌗 **Motyw jasny / ciemny** — przełącznik w pasku (zapamiętywany, z poszanowaniem preferencji systemu i bez migotania przy starcie); spójny system tokenów CSS, a HUD-y nad sceną 3D pozostają czytelne w obu motywach.
 - 🚀 **Onboarding** — ekran powitalny przy pierwszym wejściu i modal pomocy ze skrótami (❓).
 - 📱 **Responsywność** — na wąskich ekranach katalog i koszyk działają jako wysuwane panele (dotyk).
 - 🛠️ **Panel obsługi zamówień** — podgląd zamówień z danymi klienta i dostawy, zmiana statusu oraz **statystyki sprzedaży** (liczba, obrót, średnia, rozkład statusów, top produkty).

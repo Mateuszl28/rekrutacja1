@@ -11,7 +11,32 @@
   --danger: #e05555;
   --radius: 12px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* HUD-y nad sceną 3D — zawsze ciemne z jasnym tekstem (niezależnie od motywu UI) */
+  --hud-bg: rgba(20, 26, 34, 0.85);
+  --hud-panel: rgba(26, 32, 41, 0.94);
+  --hud-text: #e9edf3;
+  --hud-muted: #9aa4b2;
+  --hud-line: #3a4453;
 }
+
+/* Motyw jasny — nadpisuje zmienne; komponenty używają wyłącznie tokenów */
+:root[data-theme='light'] {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --panel-2: #f3f5f9;
+  --line: #dde2ea;
+  --text: #1a2230;
+  --muted: #63708a;
+  --accent: #e08600;
+  --accent-2: #2563eb;
+  --ok: #12924a;
+  --danger: #d64545;
+  --shadow: 0 8px 24px rgba(30, 45, 75, 0.12);
+  --thumb-bg: radial-gradient(circle at 50% 38%, #f4f6fa, #dfe4ec 78%);
+}
+
+html { transition: background-color 0.2s ease; }
+body, .topbar, .catalog, .cart, .panel, .modal, .menu, .card, .selpanel { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
 
 * { box-sizing: border-box; }
 
@@ -222,7 +247,7 @@ aside.cart { border-left: 1px solid var(--line); }
   width: 100%;
   height: 100px;
   object-fit: contain;
-  background: radial-gradient(circle at 50% 40%, #2a323e, #171d26 75%);
+  background: var(--thumb-bg, radial-gradient(circle at 50% 40%, #2a323e, #171d26 75%));
   border-radius: 8px;
   margin-bottom: 8px;
   display: block;
@@ -240,7 +265,7 @@ aside.cart { border-left: 1px solid var(--line); }
 .card .meta { display: flex; justify-content: space-between; align-items: center; }
 .card .dims { color: var(--muted); font-size: 11px; }
 .card .swatches { display: flex; gap: 4px; }
-.swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); }
+.swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.4); }
 .card .add { color: var(--accent-2); font-size: 12px; font-weight: 600; }
 .variant-row { margin: 0 0 8px; }
 .variant-sel, .sel-variant {
@@ -258,9 +283,9 @@ aside.cart { border-left: 1px solid var(--line); }
   position: absolute;
   top: 16px; left: 50%;
   transform: translateX(-50%);
-  background: rgba(20, 26, 34, 0.85);
-  border: 1px solid var(--line);
-  color: var(--muted);
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-line);
+  color: var(--hud-muted);
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 13px;
@@ -271,24 +296,24 @@ aside.cart { border-left: 1px solid var(--line); }
 .measure-hud {
   position: absolute;
   left: 16px; bottom: 16px;
-  background: rgba(20, 26, 34, 0.86);
-  border: 1px solid var(--line);
-  color: var(--muted);
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-line);
+  color: var(--hud-muted);
   padding: 7px 12px;
   border-radius: 8px;
   font-size: 12px;
   pointer-events: none;
   backdrop-filter: blur(6px);
 }
-.measure-hud b { color: var(--text); }
-.measure-hud span { color: var(--muted); }
+.measure-hud b { color: var(--hud-text); }
+.measure-hud span { color: var(--hud-muted); }
 
 .selpanel {
   position: absolute;
   bottom: 16px; left: 50%;
   transform: translateX(-50%);
-  background: rgba(26, 32, 41, 0.92);
-  border: 1px solid var(--line);
+  background: var(--hud-panel);
+  border: 1px solid var(--hud-line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 10px 14px;
@@ -299,13 +324,15 @@ aside.cart { border-left: 1px solid var(--line); }
 }
 .selpanel.show { display: flex; }
 .selpanel .sel-info { display: flex; flex-direction: column; }
-.selpanel .title { font-weight: 600; font-size: 14px; }
-.selpanel .sel-dims { color: var(--muted); font-size: 11px; }
+.selpanel .title { font-weight: 600; font-size: 14px; color: var(--hud-text); }
+.selpanel .sel-dims { color: var(--hud-muted); font-size: 11px; }
 .selpanel .sel-warn { display: none; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
-.selpanel .colors { display: flex; gap: 6px; }
+.selpanel .colors { display: flex; gap: 6px; align-items: center; }
 .selpanel .swatch { width: 20px; height: 20px; cursor: pointer; }
 .selpanel .swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
-.selpanel .divider { width: 1px; height: 24px; background: var(--line); }
+.selpanel .divider { width: 1px; height: 24px; background: var(--hud-line); }
+.selpanel .icon-btn { background: rgba(255,255,255,0.07); color: var(--hud-text); border-color: var(--hud-line); }
+.selpanel .sel-variant { background: rgba(255,255,255,0.07); color: var(--hud-text); border-color: var(--hud-line); }
 .icon-btn {
   border: 1px solid var(--line);
   background: var(--panel-2);
