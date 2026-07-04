@@ -150,4 +150,18 @@ export class SceneManager {
     this.renderer.render(this.scene, this.camera);
     return this.renderer.domElement.toDataURL('image/png');
   }
+
+  /** Lekka miniatura bieżącej sceny (JPEG) — do zapisania przy zamówieniu. */
+  captureThumbnail(maxW = 360): string {
+    this.renderer.render(this.scene, this.camera);
+    const src = this.renderer.domElement;
+    const scale = Math.min(1, maxW / src.width);
+    const c = document.createElement('canvas');
+    c.width = Math.round(src.width * scale);
+    c.height = Math.round(src.height * scale);
+    const ctx = c.getContext('2d');
+    if (!ctx) return src.toDataURL('image/jpeg', 0.7);
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.72);
+  }
 }

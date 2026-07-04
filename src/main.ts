@@ -656,6 +656,7 @@ const totalOf = () => planner.items.reduce((s, i) => s + i.product.price, 0);
 function openCheckout(): void {
   if (!planner.items.length) { toast('Dodaj meble do projektu, aby zamówić'); return; }
   if (planner.hasOverlaps()) { toast('⚠ Popraw kolizje mebli przed zamówieniem'); return; }
+  planner.select(null); // czysta miniatura sceny (bez ramki zaznaczenia)
   promoCode = null;
   const pin = document.querySelector<HTMLInputElement>('#co-promo');
   if (pin) pin.value = '';
@@ -754,6 +755,7 @@ async function submitOrder(): Promise<void> {
     room: room.kind,
     customer: { name, email, phone },
     delivery: { method, address: needsAddr ? address : '—', cost: t.deliveryCost, promo: promoCode ?? undefined },
+    thumb: sm.captureThumbnail(),
   });
   refreshApiStatus();
   const no = res ? `#${res.orderNo}` : '(offline)';
@@ -990,9 +992,14 @@ function renderAdminOrder(o: OrderSummary): string {
       <div class="ao-right"><span class="ao-total">${zl.format(o.total)}</span>
       <select class="ao-status s-${statusKey(st)}" data-no="${o.orderNo}">${opts}</select></div>
     </div>
-    <div class="ao-line">👤 ${cust}</div>
-    ${del ? `<div class="ao-line">🚚 ${del}</div>` : ''}
-    <div class="ao-line">📦 ${items || '—'}</div>
+    <div class="ao-flex">
+      ${o.thumb ? `<img class="ao-thumb" src="${o.thumb}" alt="Aranżacja">` : ''}
+      <div class="ao-info">
+        <div class="ao-line">👤 ${cust}</div>
+        ${del ? `<div class="ao-line">🚚 ${del}</div>` : ''}
+        <div class="ao-line">📦 ${items || '—'}</div>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -1002,11 +1009,22 @@ function statsHtml(orders: OrderSummary[]): string {
   const avg = count ? revenue / count : 0;
   const byStatus = new Map<string, number>();
   for (const o of orders) { const st = o.status || 'nowe'; byStatus.set(st, (byStatus.get(st) || 0) + 1); }
-  const prod = new Map<string, number>();
-  for (const o of orders) for (const it of o.items || []) prod.set(it.name, (prod.get(it.name) || 0) + (it.qty || 1));
-  const top = [...prod.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const rev = new Map<string, number>();
+  for (const o of orders) for (const it of o.items || []) rev.set(it.name, (rev.get(it.name) || 0) + it.price * (it.qty || 1));
+  const top = [...rev.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const max = top.length ? top[0][1] : 1;
   const badges = STATUSES.filter((s) => byStatus.get(s)).map((s) => `<span class="stat-badge s-${statusKey(s)}">${s}: ${byStatus.get(s)}</span>`).join('');
-  const topHtml = top.length ? top.map(([n, q]) => `<li>${esc(n)} <b>×${q}</b></li>`).join('') : '<li>—</li>';
+  // wykres magnitudy: poziome słupki, jedna barwa, wartości w kolorze tekstu
+  const chart = top.length
+    ? top
+        .map(
+          ([n, v]) =>
+            `<div class="chart-row"><span class="chart-label" title="${esc(n)}">${esc(n)}</span>` +
+            `<span class="chart-track"><span class="chart-bar" style="width:${Math.max(4, Math.round((v / max) * 100))}%"></span></span>` +
+            `<span class="chart-val">${zl.format(v)}</span></div>`
+        )
+        .join('')
+    : '<div class="ao-line">—</div>';
   return `<div class="admin-stats">
     <div class="stat-tiles">
       <div class="stat-tile"><span>Zamówień</span><b>${count}</b></div>
@@ -1014,7 +1032,7 @@ function statsHtml(orders: OrderSummary[]): string {
       <div class="stat-tile"><span>Śr. wartość</span><b>${zl.format(Math.round(avg))}</b></div>
     </div>
     ${badges ? `<div class="stat-badges">${badges}</div>` : ''}
-    <div class="stat-top"><span class="ctrl-label">Najczęściej zamawiane</span><ul>${topHtml}</ul></div>
+    <div class="stat-chart"><span class="ctrl-label">Top produkty wg sprzedaży</span>${chart}</div>
   </div>`;
 }
 

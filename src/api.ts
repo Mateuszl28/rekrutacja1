@@ -35,6 +35,7 @@ export interface OrderPayload {
   room: RoomKind;
   customer?: Customer;
   delivery?: Delivery;
+  thumb?: string;
 }
 
 export interface Snapshot {
@@ -70,6 +71,7 @@ export interface OrderSummary {
   customer?: Customer | null;
   delivery?: Delivery | null;
   items?: OrderPayloadItem[];
+  thumb?: string | null;
 }
 
 export interface ProjectSummary {

@@ -137,6 +137,7 @@ const server = createServer(async (req, res) => {
           count: items.reduce((s, i) => s + (i.qty || 1), 0),
           customer: body.customer ?? null,
           delivery: body.delivery ?? null,
+          thumb: typeof body.thumb === 'string' ? body.thumb : null,
           items,
         });
         persist(db);

@@ -25,6 +25,8 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - ☁️ **Backend koszyka** — składanie zamówień (numer + trwały zapis), **historia zamówień** i zapis/odczyt projektu w chmurze; front działa też offline (fallback do localStorage).
 - 🧾 **Proces zamówienia** — wieloetapowy checkout: koszyk → dane klienta i dostawa (walidacja) → potwierdzenie z numerem; **opcje dostawy z kosztem** (kurier/ekspres/odbiór), **kody rabatowe** (MEBLE10, GRATIS) i podsumowanie na żywo; backend zapisuje klienta, dostawę i pozycje.
 - ⬇️ **Eksport CSV** zamówień z panelu obsługi (z BOM — poprawne polskie znaki w Excelu).
+- 🖼️ **Miniatura aranżacji** zapisywana przy zamówieniu i widoczna w panelu obsługi.
+- 📈 **Wykres sprzedaży** (top produkty wg obrotu) w statystykach panelu obsługi.
 - 🖼️ **Miniatury 3D** produktów w katalogu (renderowane z modeli `.glb`) + **wyszukiwarka**.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **wydruk/PDF** podsumowania.
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
