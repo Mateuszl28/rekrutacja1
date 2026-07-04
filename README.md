@@ -1,5 +1,7 @@
 # 🛋️ MebleLab 3D
 
+[![CI](https://github.com/Mateuszl28/rekrutacja1/actions/workflows/ci.yml/badge.svg)](https://github.com/Mateuszl28/rekrutacja1/actions/workflows/ci.yml)
+
 Sklep meblowy w 3D ze **zintegrowanym planerem pomieszczeń** (salon / kuchnia).
 Przeglądasz katalog, wstawiasz meble do pokoju 3D, aranżujesz je na żywo, a to co
 ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapłaty.
