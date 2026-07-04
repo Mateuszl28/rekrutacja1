@@ -35,6 +35,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🖼️ **Miniatury 3D** produktów w katalogu (renderowane z modeli `.glb`) + **wyszukiwarka**.
 - 🔍 **Szybki podgląd produktu** — modal z interaktywnym modelem 3D (auto-obrót + przeciąganie), zmianą wariantu i koloru na żywo, wymiarami i przyciskiem „Dodaj do projektu".
 - ♥ **Ulubione / lista życzeń** — serce na kartach, licznik i filtr „tylko ulubione"; wybór zapamiętywany w przeglądarce.
+- ⇄ **Porównywarka produktów** — zaznacz do 4 mebli i zobacz specyfikacje obok siebie (cena/zakres cen, wymiary, kategoria, montaż, warianty, kolory, opis) z możliwością dodania do projektu wprost z tabeli.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **zestawy mebli** (np. stół + 6 krzeseł, strefa wypoczynku) dodawane do bieżącego pokoju jako jedna operacja.
 - 🧾 **Wydruk/PDF** podsumowania zamówienia.
 - 📐 **Rzut 2D z wymiarami** — schematyczny widok z góry (SVG, skala zachowana) z gabarytami mebli, numeracją, legendą i wymiarami ścian; gotowy do druku/PDF.

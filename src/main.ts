@@ -165,6 +165,17 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+  <div class="modal-overlay" id="compare-modal">
+    <div class="modal compare-modal">
+      <div class="modal-head"><span>⇄ Porównanie produktów</span><button class="modal-close" id="compare-close">✕</button></div>
+      <div class="modal-body" id="compare-body"></div>
+    </div>
+  </div>
+  <div class="compare-bar" id="compare-bar" hidden>
+    <span class="cb-label">⇄ Do porównania: <b id="compare-count">0</b></span>
+    <button class="btn" id="compare-open">Porównaj</button>
+    <button class="btn icon" id="compare-clear" title="Wyczyść">✕</button>
+  </div>
   <div class="modal-overlay" id="checkout-modal">
     <div class="modal">
       <div class="modal-head"><span>🛒 Zamówienie</span><button class="modal-close" id="checkout-close">✕</button></div>
@@ -338,6 +349,30 @@ function toggleFavorite(id: string): void {
   saveFavorites();
   syncFavUI();
 }
+
+const compareSet = new Set<string>();
+const MAX_COMPARE = 4;
+/** Przełącza produkt w porównaniu. Zwraca false, gdy odrzucono (przekroczony limit). */
+function toggleCompare(id: string): boolean {
+  if (compareSet.has(id)) {
+    compareSet.delete(id);
+  } else {
+    if (compareSet.size >= MAX_COMPARE) {
+      toast(`Można porównać maksymalnie ${MAX_COMPARE} produkty`);
+      return false;
+    }
+    compareSet.add(id);
+  }
+  syncCompareBar();
+  return true;
+}
+function syncCompareBar(): void {
+  const bar = document.querySelector<HTMLDivElement>('#compare-bar');
+  if (!bar) return;
+  bar.hidden = compareSet.size === 0;
+  const c = document.querySelector<HTMLElement>('#compare-count');
+  if (c) c.textContent = String(compareSet.size);
+}
 function syncFavUI(): void {
   const countEl = document.querySelector<HTMLElement>('#fav-count');
   if (countEl) countEl.textContent = String(favorites.size);
@@ -393,6 +428,7 @@ function renderCatalog(cat: RoomKind): void {
           <div class="thumb-wrap">
             ${thumb ? `<img class="thumb" src="${thumb}" alt="${p.name}" draggable="false">` : '<div class="thumb thumb-ph"></div>'}
             <button class="fav-btn ${favorites.has(p.id) ? 'on' : ''}" data-fav title="Dodaj do ulubionych" aria-label="Ulubione">${favorites.has(p.id) ? '♥' : '♡'}</button>
+            <button class="cmp-btn ${compareSet.has(p.id) ? 'on' : ''}" data-cmp title="Dodaj do porównania" aria-label="Porównaj">⇄</button>
             <button class="qv-btn" data-qv title="Szybki podgląd">⤢</button>
           </div>
           <div class="row"><span class="name">${p.name}</span><span class="price">${zl.format(price)}</span></div>
@@ -423,6 +459,12 @@ cardsEl.addEventListener('click', (e) => {
       const on = favorites.has(product.id);
       btn.classList.toggle('on', on);
       btn.textContent = on ? '♥' : '♡';
+    }
+    return;
+  }
+  if (target.closest('[data-cmp]')) {
+    if (toggleCompare(product.id)) {
+      target.closest<HTMLButtonElement>('[data-cmp]')!.classList.toggle('on', compareSet.has(product.id));
     }
     return;
   }
@@ -567,6 +609,77 @@ $<HTMLButtonElement>('#pm-add').addEventListener('click', () => {
 $<HTMLButtonElement>('#pm-close').addEventListener('click', closeProduct);
 productModal.addEventListener('click', (e) => { if (e.target === productModal) closeProduct(); });
 window.addEventListener('resize', () => { if (productModal.classList.contains('show')) preview?.resize(); });
+
+// —————————————————————— PORÓWNYWARKA PRODUKTÓW ——————————————————————
+const compareModal = $<HTMLDivElement>('#compare-modal');
+const compareBody = $<HTMLDivElement>('#compare-body');
+const ROOM_LABEL: Record<RoomKind, string> = { living: 'Salon', kitchen: 'Kuchnia' };
+
+function priceLabel(p: ProductDef): string {
+  if (p.variants && p.variants.length > 1) {
+    const ps = p.variants.map((v) => v.price);
+    const min = Math.min(...ps), max = Math.max(...ps);
+    return min === max ? zl.format(min) : `${zl.format(min)} – ${zl.format(max)}`;
+  }
+  return zl.format(p.price);
+}
+
+function openCompare(): void {
+  const items = [...compareSet].map((id) => getProduct(id)).filter((p): p is ProductDef => !!p);
+  if (!items.length) { toast('Zaznacz produkty do porównania (⇄)'); return; }
+  const thumbOf = (p: ProductDef) => thumbCache.get(`${p.id}|${chosenColor.get(p.id) ?? p.colors[0]}`) ?? thumbs?.get(p.id) ?? '';
+  const th = items
+    .map(
+      (p) => `<th><div class="cmp-col">
+        ${thumbOf(p) ? `<img class="cmp-thumb" src="${thumbOf(p)}" alt="">` : '<div class="cmp-thumb"></div>'}
+        <div class="cmp-name">${escHtml(p.name)}</div>
+        <div class="cmp-colacts"><button class="btn tiny" data-cmp-add="${p.id}">Dodaj +</button>
+        <button class="cmp-rm" data-cmp-rm="${p.id}" title="Usuń z porównania">✕</button></div>
+      </div></th>`
+    )
+    .join('');
+  const row = (label: string, cells: string) => `<tr><th class="cmp-rowlabel">${label}</th>${cells}</tr>`;
+  const body = [
+    row('Cena', items.map((p) => `<td class="cmp-price">${priceLabel(p)}</td>`).join('')),
+    row('Wymiary', items.map((p) => `<td>${p.size[0]}×${p.size[2]}×${p.size[1]} m</td>`).join('')),
+    row('Kategoria', items.map((p) => `<td>${ROOM_LABEL[p.category]}</td>`).join('')),
+    row('Montaż', items.map((p) => `<td>${p.mount === 'wall' ? 'ścienny' : 'podłogowy'}</td>`).join('')),
+    row('Warianty', items.map((p) => `<td>${p.variants ? p.variants.map((v) => v.label).join('<br>') : '—'}</td>`).join('')),
+    row('Kolory', items.map((p) => `<td><div class="cmp-colors">${p.colors.map((c) => `<span class="swatch" style="background:${hex(c)}"></span>`).join('')}</div></td>`).join('')),
+    row('Opis', items.map((p) => `<td class="cmp-desc">${escHtml(p.description)}</td>`).join('')),
+  ].join('');
+  compareBody.innerHTML = `<div class="cmp-scroll"><table class="cmp-table"><thead><tr><th></th>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
+  compareModal.classList.add('show');
+}
+
+function closeCompare(): void { compareModal.classList.remove('show'); }
+
+$<HTMLButtonElement>('#compare-open').addEventListener('click', openCompare);
+$<HTMLButtonElement>('#compare-clear').addEventListener('click', () => {
+  compareSet.clear();
+  syncCompareBar();
+  closeCompare();
+  renderCatalog(currentCat); // odśwież stan przycisków ⇄ na kartach
+});
+$<HTMLButtonElement>('#compare-close').addEventListener('click', closeCompare);
+compareModal.addEventListener('click', (e) => { if (e.target === compareModal) closeCompare(); });
+compareBody.addEventListener('click', (e) => {
+  const t = e.target as HTMLElement;
+  const addId = t.closest<HTMLElement>('[data-cmp-add]')?.dataset.cmpAdd;
+  if (addId) {
+    const p = getProduct(addId);
+    if (p) { planner.addProduct(p, chosenColor.get(p.id), 0, 0, 0, chosenVariant.get(p.id)); toast(`➕ Dodano „${p.name}”`); }
+    return;
+  }
+  const rmId = t.closest<HTMLElement>('[data-cmp-rm]')?.dataset.cmpRm;
+  if (rmId) {
+    compareSet.delete(rmId);
+    syncCompareBar();
+    renderCatalog(currentCat);
+    if (compareSet.size) openCompare();
+    else closeCompare();
+  }
+});
 
 // zakładki katalogu
 const catTabs = $<HTMLDivElement>('#cat-tabs');
@@ -1537,6 +1650,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') {
     if (welcomeModal.classList.contains('show')) closeWelcome();
     else if (productModal.classList.contains('show')) closeProduct();
+    else if (compareModal.classList.contains('show')) closeCompare();
     else if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
     else if (helpModal.classList.contains('show')) helpModal.classList.remove('show');
     else if (adminModal.classList.contains('show')) adminModal.classList.remove('show');
