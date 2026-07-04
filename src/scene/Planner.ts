@@ -51,6 +51,8 @@ export class Planner {
   onCommit: () => void = () => {};
   onSelect: (item: PlacedItem | null) => void = () => {};
   onCollision: () => void = () => {};
+  /** Wywoływane przy zmianie pozycji/obrotu zaznaczonego mebla (aktualizacja HUD wymiarów). */
+  onTransform: () => void = () => {};
 
   constructor(sm: SceneManager, room: Room) {
     this.sm = sm;
@@ -314,6 +316,7 @@ export class Planner {
       }
     }
     this.updateCollisions();
+    this.onTransform();
     this.onCommit();
   }
 
@@ -344,6 +347,7 @@ export class Planner {
       item.group.position.z = cz;
     }
     this.updateCollisions();
+    this.onTransform();
     this.onCommit();
   }
 
@@ -418,6 +422,7 @@ export class Planner {
       this.dragMoved = true;
       this.updateCollisions();
       this.hideGuides();
+      this.onTransform();
       return;
     }
 
@@ -458,6 +463,7 @@ export class Planner {
     this.dragMoved = true;
     this.updateCollisions();
     this.updateGuides(snapX ? item.group.position.x : null, snapZ ? item.group.position.z : null);
+    this.onTransform();
   }
 
   private onPointerUp(): void {
@@ -577,6 +583,23 @@ export class Planner {
 
   hasOverlaps(): boolean {
     return this.items.some((i) => i.overlap);
+  }
+
+  /** Wymiary i odległości zaznaczonego mebla od ścian (do HUD). */
+  getSelectedInfo(): { name: string; w: number; d: number; h: number; gapBack: number; gapFront: number; gapLeft: number; gapRight: number } | null {
+    const it = this.selected;
+    if (!it) return null;
+    const b = this.room.bounds;
+    const box = this.aabbOf(it);
+    const [w, h, d] = it.product.size;
+    return {
+      name: it.product.name,
+      w, d, h,
+      gapBack: Math.max(0, box.minZ - b.minZ),
+      gapFront: Math.max(0, b.maxZ - box.maxZ),
+      gapLeft: Math.max(0, box.minX - b.minX),
+      gapRight: Math.max(0, b.maxX - box.maxX),
+    };
   }
 
   /** Dodaje mebel w miejscu wskazanym na ekranie (drag&drop z katalogu). */

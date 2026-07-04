@@ -162,8 +162,9 @@ aside.cart { border-left: 1px solid var(--line); }
 }
 .cat-tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--accent-2); }
 
+.cat-controls { display: flex; gap: 6px; padding: 0 12px 8px; }
 .cat-search {
-  margin: 0 12px 8px;
+  flex: 1; min-width: 0;
   padding: 9px 12px;
   border: 1px solid var(--line);
   background: var(--panel-2);
@@ -173,6 +174,11 @@ aside.cart { border-left: 1px solid var(--line); }
   outline: none;
 }
 .cat-search:focus { border-color: var(--accent-2); }
+.cat-sort {
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  border-radius: 8px; padding: 0 8px; font-size: 12px; cursor: pointer; outline: none;
+}
+.cat-sort:focus { border-color: var(--accent-2); }
 
 .cards { padding: 4px 12px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 
@@ -233,6 +239,21 @@ aside.cart { border-left: 1px solid var(--line); }
   pointer-events: none;
   backdrop-filter: blur(6px);
 }
+
+.measure-hud {
+  position: absolute;
+  left: 16px; bottom: 16px;
+  background: rgba(20, 26, 34, 0.86);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+.measure-hud b { color: var(--text); }
+.measure-hud span { color: var(--muted); }
 
 .selpanel {
   position: absolute;
@@ -485,6 +506,23 @@ aside.cart { border-left: 1px solid var(--line); }
 .ao-status.s-wyslane { border-color: #3f9dc9; color: #57b6e0; }
 .ao-status.s-gotowe { border-color: var(--ok); color: var(--ok); }
 .ao-status.s-anulowane { border-color: var(--danger); color: var(--danger); }
+
+/* statystyki panelu obsługi */
+.admin-stats { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 4px; }
+.stat-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; text-align: center; }
+.stat-tile span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-tile b { font-size: 19px; }
+.stat-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.stat-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); }
+.stat-badge.s-nowe { border-color: var(--accent-2); color: var(--accent-2); }
+.stat-badge.s-realizacja { border-color: var(--accent); color: var(--accent); }
+.stat-badge.s-wyslane { border-color: #57b6e0; color: #57b6e0; }
+.stat-badge.s-gotowe { border-color: var(--ok); color: var(--ok); }
+.stat-badge.s-anulowane { border-color: var(--danger); color: var(--danger); }
+.stat-top { margin-top: 12px; }
+.stat-top ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.stat-top b { color: var(--accent); }
 
 .proj-actions { display: flex; gap: 6px; }
 .proj-actions .btn { padding: 6px 10px; font-size: 12px; }

@@ -69,7 +69,15 @@ app.innerHTML = `
         <button data-cat="living" class="active">Salon</button>
         <button data-cat="kitchen">Kuchnia</button>
       </div>
-      <input class="cat-search" id="cat-search" type="search" placeholder="🔍 Szukaj mebla…" />
+      <div class="cat-controls">
+        <input class="cat-search" id="cat-search" type="search" placeholder="🔍 Szukaj…" />
+        <select class="cat-sort" id="cat-sort" title="Sortowanie">
+          <option value="default">Polecane</option>
+          <option value="price-asc">Cena ↑</option>
+          <option value="price-desc">Cena ↓</option>
+          <option value="name">Nazwa A–Z</option>
+        </select>
+      </div>
       <div class="cards" id="cards"></div>
       <div class="room-ctrl">
         <div class="panel-head" style="position:static;padding:0 0 8px">Pomieszczenie</div>
@@ -86,6 +94,7 @@ app.innerHTML = `
     </aside>
     <div class="viewport" id="viewport">
       <div class="hint" id="hint">Kliknij lub przeciągnij mebel z katalogu →</div>
+      <div class="measure-hud" id="measure-hud" hidden></div>
       <div class="selpanel" id="selpanel"></div>
     </div>
     <aside class="cart" id="cart-aside">
@@ -259,6 +268,7 @@ const cardsEl = $<HTMLDivElement>('#cards');
 const chosenColor = new Map<string, number>();
 let currentCat: RoomKind = 'living';
 let searchQuery = '';
+let sortMode = 'default';
 let thumbs: Map<string, string> | null = null;
 
 function renderCatalog(cat: RoomKind): void {
@@ -266,6 +276,9 @@ function renderCatalog(cat: RoomKind): void {
   const list = PRODUCTS.filter(
     (p) => p.category === cat && (!q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
   );
+  if (sortMode === 'price-asc') list.sort((a, b) => a.price - b.price);
+  else if (sortMode === 'price-desc') list.sort((a, b) => b.price - a.price);
+  else if (sortMode === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   if (list.length === 0) {
     cardsEl.innerHTML = `<div class="cart-empty">Brak mebli dla „${searchQuery}”.</div>`;
     return;
@@ -332,9 +345,13 @@ viewport.addEventListener('drop', (e) => {
   } catch { /* ignoruj */ }
 });
 
-// wyszukiwarka katalogu
+// wyszukiwarka i sortowanie katalogu
 $<HTMLInputElement>('#cat-search').addEventListener('input', (e) => {
   searchQuery = (e.target as HTMLInputElement).value;
+  renderCatalog(currentCat);
+});
+$<HTMLSelectElement>('#cat-sort').addEventListener('change', (e) => {
+  sortMode = (e.target as HTMLSelectElement).value;
   renderCatalog(currentCat);
 });
 
@@ -505,6 +522,7 @@ function loadProject(): boolean {
 // —————————————————————— PANEL ZAZNACZENIA ——————————————————————
 const selpanel = $<HTMLDivElement>('#selpanel');
 planner.onSelect = (item) => {
+  updateHud();
   if (!item) { selpanel.classList.remove('show'); return; }
   const [w, h, d] = item.product.size;
   const colors = item.product.colors
@@ -537,6 +555,17 @@ function updateSelWarning(): void {
   if (warn) warn.style.display = planner.selected?.overlap ? 'inline-block' : 'none';
 }
 planner.onCollision = updateSelWarning;
+
+// HUD z wymiarami i odległościami od ścian
+const measureHud = $<HTMLDivElement>('#measure-hud');
+function updateHud(): void {
+  const info = planner.getSelectedInfo();
+  if (!info) { measureHud.hidden = true; return; }
+  const m = (v: number) => v.toFixed(2);
+  measureHud.hidden = false;
+  measureHud.innerHTML = `<b>${info.w}×${info.d} m</b> <span>ściany —</span> L ${m(info.gapLeft)} · P ${m(info.gapRight)} · tył ${m(info.gapBack)} · przód ${m(info.gapFront)} m`;
+}
+planner.onTransform = updateHud;
 
 // —————————————————————— KOSZYK ——————————————————————
 const cartItemsEl = $<HTMLDivElement>('#cart-items');
@@ -914,13 +943,35 @@ function renderAdminOrder(o: OrderSummary): string {
   </div>`;
 }
 
+function statsHtml(orders: OrderSummary[]): string {
+  const count = orders.length;
+  const revenue = orders.reduce((s, o) => s + (o.total || 0), 0);
+  const avg = count ? revenue / count : 0;
+  const byStatus = new Map<string, number>();
+  for (const o of orders) { const st = o.status || 'nowe'; byStatus.set(st, (byStatus.get(st) || 0) + 1); }
+  const prod = new Map<string, number>();
+  for (const o of orders) for (const it of o.items || []) prod.set(it.name, (prod.get(it.name) || 0) + (it.qty || 1));
+  const top = [...prod.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const badges = STATUSES.filter((s) => byStatus.get(s)).map((s) => `<span class="stat-badge s-${statusKey(s)}">${s}: ${byStatus.get(s)}</span>`).join('');
+  const topHtml = top.length ? top.map(([n, q]) => `<li>${esc(n)} <b>×${q}</b></li>`).join('') : '<li>—</li>';
+  return `<div class="admin-stats">
+    <div class="stat-tiles">
+      <div class="stat-tile"><span>Zamówień</span><b>${count}</b></div>
+      <div class="stat-tile"><span>Sprzedaż</span><b>${zl.format(revenue)}</b></div>
+      <div class="stat-tile"><span>Śr. wartość</span><b>${zl.format(Math.round(avg))}</b></div>
+    </div>
+    ${badges ? `<div class="stat-badges">${badges}</div>` : ''}
+    <div class="stat-top"><span class="ctrl-label">Najczęściej zamawiane</span><ul>${topHtml}</ul></div>
+  </div>`;
+}
+
 async function openAdmin(): Promise<void> {
   adminBody.innerHTML = '<div class="orders-empty">Ładowanie…</div>';
   adminModal.classList.add('show');
   const orders = await api.listOrders();
   if (!orders) { adminBody.innerHTML = '<div class="orders-empty">Backend offline. Uruchom „npm run dev:full".</div>'; return; }
   if (orders.length === 0) { adminBody.innerHTML = '<div class="orders-empty">Brak zamówień. Złóż pierwsze przez „Zamów aranżację".</div>'; return; }
-  adminBody.innerHTML = orders.slice().reverse().map(renderAdminOrder).join('');
+  adminBody.innerHTML = statsHtml(orders) + orders.slice().reverse().map(renderAdminOrder).join('');
 }
 
 $<HTMLButtonElement>('#btn-admin').addEventListener('click', openAdmin);
