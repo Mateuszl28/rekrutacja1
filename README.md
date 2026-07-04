@@ -32,6 +32,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🎨 **Własne kolory** — dowolny odcień ścian i zaznaczonego mebla (natywny próbnik koloru), obok gotowych próbek.
 - 🖼️ **Miniatury 3D** produktów w katalogu (renderowane z modeli `.glb`) + **wyszukiwarka**.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **wydruk/PDF** podsumowania.
+- 📐 **Rzut 2D z wymiarami** — schematyczny widok z góry (SVG, skala zachowana) z gabarytami mebli, numeracją, legendą i wymiarami ścian; gotowy do druku/PDF.
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
 - 🚀 **Onboarding** — ekran powitalny przy pierwszym wejściu i modal pomocy ze skrótami (❓).
 - 📱 **Responsywność** — na wąskich ekranach katalog i koszyk działają jako wysuwane panele (dotyk).
@@ -152,5 +153,5 @@ Skrypt buduje front, kopiuje `dist/` + serwer, instaluje usługę `deploy/meblel
 
 ## Możliwa rozbudowa
 
-Baza danych zamiast pliku JSON, konta użytkowników i zapis wielu projektów, wymiarowanie
-i eksport rzutu 2D (PDF), realne modele `.glb` z CDN, płatności.
+Baza danych zamiast pliku JSON, konta użytkowników i zapis wielu projektów,
+realne modele `.glb` z CDN, kompletowanie zestawów (stół + krzesła), płatności.

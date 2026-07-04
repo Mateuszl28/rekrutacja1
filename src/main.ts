@@ -55,6 +55,7 @@ app.innerHTML = `
           <button class="menu-item" id="btn-load">📂 Wczytaj projekt</button>
           <div class="menu-sep"></div>
           <button class="menu-item" id="btn-print">🧾 Podsumowanie / PDF</button>
+          <button class="menu-item" id="btn-plan">📐 Rzut 2D z wymiarami</button>
           <button class="menu-item" id="btn-shot">📸 Zrzut ekranu PNG</button>
           <div class="menu-sep"></div>
           <button class="menu-item danger" id="btn-clear">🗑️ Wyczyść projekt</button>
@@ -1009,6 +1010,110 @@ $<HTMLButtonElement>('#btn-print').addEventListener('click', () => {
     <tbody>${rows || '<tr><td colspan="4" style="color:#888">Brak mebli w projekcie.</td></tr>'}</tbody>
     <tfoot><tr><td colspan="3">Razem</td><td class="r">${zl.format(total)}</td></tr></tfoot></table>
     <script>window.onload=()=>setTimeout(()=>window.print(),300)</script>
+  </body></html>`);
+  w.document.close();
+});
+
+// —————————————————————— RZUT 2D Z WYMIARAMI ——————————————————————
+const rgba = (n: number, a: number) =>
+  `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+
+/** Buduje schematyczny rzut 2D pomieszczenia (SVG) z gabarytami mebli i wymiarami ścian. */
+function buildFloorPlanSVG(): string {
+  const b = room.bounds;
+  const W = room.width;
+  const D = room.depth;
+  const scale = Math.max(26, Math.min(96, 620 / W, 800 / D));
+  const pad = 64;
+  const planW = W * scale;
+  const planD = D * scale;
+  const svgW = planW + pad * 2;
+  const svgH = planD + pad * 2;
+  const fx = (x: number) => pad + (x - b.minX) * scale;
+  const fy = (z: number) => pad + (z - b.minZ) * scale;
+
+  // siatka co 1 m
+  let grid = '';
+  for (let x = Math.ceil(b.minX); x < b.maxX; x++) grid += `<line x1="${fx(x).toFixed(1)}" y1="${pad}" x2="${fx(x).toFixed(1)}" y2="${pad + planD}"/>`;
+  for (let z = Math.ceil(b.minZ); z < b.maxZ; z++) grid += `<line x1="${pad}" y1="${fy(z).toFixed(1)}" x2="${pad + planW}" y2="${fy(z).toFixed(1)}"/>`;
+
+  // meble
+  let shapes = '';
+  let labels = '';
+  planner.items.forEach((it, idx) => {
+    const n = idx + 1;
+    const cx = fx(it.group.position.x);
+    const cy = fy(it.group.position.z);
+    const w = it.size[0] * scale;
+    const d = it.size[2] * scale;
+    const deg = (-it.group.rotation.y * 180) / Math.PI;
+    const wall = it.product.mount === 'wall';
+    const fill = rgba(it.color, wall ? 0.35 : 0.8);
+    shapes +=
+      `<g transform="translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${deg.toFixed(1)})">` +
+      `<rect x="${(-w / 2).toFixed(1)}" y="${(-d / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${d.toFixed(1)}" rx="3" ` +
+      `fill="${fill}" stroke="#1a2029" stroke-width="1.2"${wall ? ' stroke-dasharray="4 3"' : ''}/></g>`;
+    labels +=
+      `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="10" fill="#fff" stroke="#1a2029" stroke-width="1.2"/>` +
+      `<text x="${cx.toFixed(1)}" y="${(cy + 3.5).toFixed(1)}" text-anchor="middle" class="num">${n}</text>`;
+  });
+
+  // linie wymiarowe (szerokość u góry, głębokość po lewej)
+  const dimW =
+    `<line class="dim" x1="${pad}" y1="${pad - 26}" x2="${pad + planW}" y2="${pad - 26}"/>` +
+    `<line class="dim" x1="${pad}" y1="${pad - 31}" x2="${pad}" y2="${pad - 21}"/>` +
+    `<line class="dim" x1="${pad + planW}" y1="${pad - 31}" x2="${pad + planW}" y2="${pad - 21}"/>` +
+    `<text x="${(pad + planW / 2).toFixed(1)}" y="${pad - 32}" text-anchor="middle" class="dimt">${W.toFixed(1)} m</text>`;
+  const dimD =
+    `<line class="dim" x1="${pad - 26}" y1="${pad}" x2="${pad - 26}" y2="${pad + planD}"/>` +
+    `<line class="dim" x1="${pad - 31}" y1="${pad}" x2="${pad - 21}" y2="${pad}"/>` +
+    `<line class="dim" x1="${pad - 31}" y1="${pad + planD}" x2="${pad - 21}" y2="${pad + planD}"/>` +
+    `<text x="${pad - 32}" y="${(pad + planD / 2).toFixed(1)}" text-anchor="middle" class="dimt" transform="rotate(-90 ${pad - 32} ${(pad + planD / 2).toFixed(1)})">${D.toFixed(1)} m</text>`;
+
+  return `<svg viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" xmlns="http://www.w3.org/2000/svg" class="plan">
+    <g class="grid">${grid}</g>
+    <rect x="${pad}" y="${pad}" width="${planW.toFixed(1)}" height="${planD.toFixed(1)}" fill="none" stroke="#1a2029" stroke-width="2.5"/>
+    ${shapes}${labels}${dimW}${dimD}
+  </svg>`;
+}
+
+$<HTMLButtonElement>('#btn-plan').addEventListener('click', () => {
+  if (!planner.items.length) { toast('Dodaj meble, aby wygenerować rzut'); return; }
+  const svg = buildFloorPlanSVG();
+  const legend = planner.items
+    .map((it, i) => `<li><span class="lc" style="background:${rgba(it.color, it.product.mount === 'wall' ? 0.35 : 0.8)}"></span><b>${i + 1}.</b> ${escHtml(itemLabel(it.product, it.variant))} <span class="lp">${it.size[0]}×${it.size[2]} m · ${zl.format(it.price)}</span></li>`)
+    .join('');
+  const roomName = room.kind === 'kitchen' ? 'Kuchnia' : 'Salon';
+  const date = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+  const total = planner.items.reduce((s, i) => s + i.price, 0);
+  const w = window.open('', '_blank', 'width=980,height=1100');
+  if (!w) { toast('Zezwól na wyskakujące okna, aby wydrukować'); return; }
+  w.document.write(`<!doctype html><html lang="pl"><head><meta charset="utf-8">
+  <title>MebleLab 3D — rzut 2D</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#1a2029;margin:32px;max-width:900px}
+    header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #ffb020;padding-bottom:12px;margin-bottom:18px}
+    h1{margin:0;font-size:22px}.sub{color:#666;font-size:13px}
+    .meta{color:#666;font-size:13px;margin-bottom:14px}
+    .plan{width:100%;height:auto;border:1px solid #ddd;border-radius:10px;background:#fafafa}
+    .plan .grid line{stroke:#e2e5ea;stroke-width:1}
+    .plan .dim{stroke:#8a8f98;stroke-width:1}
+    .plan .dimt{fill:#555;font-size:12px;font-weight:600}
+    .plan .num{fill:#1a2029;font-size:11px;font-weight:700}
+    ol{list-style:none;padding:0;margin:16px 0 0;columns:2;column-gap:26px;font-size:13px}
+    li{margin:0 0 6px;break-inside:avoid;display:flex;align-items:center;gap:7px}
+    .lc{width:13px;height:13px;border-radius:3px;border:1px solid #1a2029;display:inline-block;flex:none}
+    .lp{color:#888;margin-left:auto;white-space:nowrap}
+    .tot{margin-top:14px;text-align:right;font-weight:700;font-size:16px;border-top:2px solid #333;padding-top:10px}
+    @media print{body{margin:0}}
+  </style></head><body>
+    <header><div><h1>🛋️ MebleLab 3D</h1><div class="sub">Rzut 2D pomieszczenia z wymiarami</div></div>
+    <div class="sub">${date}</div></header>
+    <div class="meta">Pomieszczenie: <b>${roomName}</b> ${room.width.toFixed(1)}×${room.depth.toFixed(1)} m (${room.area.toFixed(1)} m²) · elementów: <b>${planner.items.length}</b> · widok z góry, skala zachowana</div>
+    ${svg}
+    <ol>${legend}</ol>
+    <div class="tot">Razem: ${zl.format(total)}</div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),350)</script>
   </body></html>`);
   w.document.close();
 });
