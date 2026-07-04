@@ -475,8 +475,50 @@ aside.cart { border-left: 1px solid var(--line); }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* —————————— POMOC —————————— */
+.help-body h4 { margin: 14px 0 4px; font-size: 14px; }
+.help-body p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.help-keys { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+.help-keys td { padding: 7px 4px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.help-keys td:last-child { text-align: right; }
+kbd {
+  background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 5px; padding: 2px 6px; font-size: 12px; color: var(--text); font-family: inherit;
+}
+
+/* —————————— POWITANIE —————————— */
+.welcome-overlay .welcome-card { text-align: center; padding: 32px 30px; max-width: 440px; }
+.welcome-logo { font-size: 54px; }
+.welcome-card h2 { margin: 8px 0 6px; }
+.welcome-card p { color: var(--muted); margin: 0 auto 22px; line-height: 1.55; max-width: 360px; }
+.welcome-actions { display: flex; flex-direction: column; gap: 10px; }
+.welcome-actions .checkout { font-size: 15px; }
+
+/* —————————— ELEMENTY MOBILNE —————————— */
+.mobile-only { display: none; }
+.drawer-close { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; float: right; }
+.drawer-close:hover { color: var(--danger); }
+.drawer-backdrop {
+  position: fixed; inset: 0; background: rgba(8, 11, 16, 0.55);
+  z-index: 55; display: none;
+}
+.drawer-backdrop.show { display: block; }
+
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; grid-template-rows: auto 320px auto; }
-  aside { max-height: 220px; }
-  aside.cart { max-height: none; }
+  .mobile-only { display: inline-flex; }
+  .topbar .brand small { display: none; }
+  .layout { display: block; position: relative; height: 100%; }
+  .viewport { width: 100%; height: 100%; }
+  aside.catalog, aside.cart {
+    position: fixed; top: 0; bottom: 0; width: min(86vw, 320px);
+    z-index: 60; transition: transform 0.25s ease; max-height: none;
+  }
+  aside.catalog { left: 0; transform: translateX(-101%); border-right: 1px solid var(--line); }
+  aside.catalog.open { transform: none; box-shadow: var(--shadow); }
+  aside.cart { right: 0; transform: translateX(101%); border-left: 1px solid var(--line); }
+  aside.cart.open { transform: none; box-shadow: var(--shadow); }
+  .form-grid { grid-template-columns: 1fr; }
+  .stepper .step { font-size: 11px; padding: 6px; }
+  .tool-group { padding: 2px; }
+  .api-status { display: none; }
 }

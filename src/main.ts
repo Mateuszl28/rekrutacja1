@@ -31,6 +31,8 @@ app.innerHTML = `
     <span class="spacer"></span>
     <span class="api-status offline" id="api-status" title="Status backendu koszyka">● API</span>
     <div class="tools">
+      <button class="btn icon mobile-only" id="m-catalog" title="Katalog">🛒</button>
+      <button class="btn icon mobile-only" id="m-cart" title="Koszyk">🧾</button>
       <div class="tool-group">
         <button class="btn icon" id="btn-undo" title="Cofnij (Ctrl+Z)">↶</button>
         <button class="btn icon" id="btn-redo" title="Ponów (Ctrl+Y)">↷</button>
@@ -39,6 +41,7 @@ app.innerHTML = `
         <button class="btn" id="btn-view" title="Rzut z góry / 3D">⬜ 2D</button>
         <button class="btn active" id="btn-snap" title="Przyciąganie do siatki">🧲</button>
         <button class="btn icon" id="btn-reset" title="Reset kamery">🎯</button>
+        <button class="btn icon" id="btn-help" title="Pomoc / skróty">❓</button>
       </div>
       <button class="btn" id="btn-templates" title="Gotowe aranżacje">✨ Aranżacje</button>
       <div class="menu-wrap">
@@ -59,8 +62,8 @@ app.innerHTML = `
     </div>
   </header>
   <div class="layout">
-    <aside class="catalog">
-      <div class="panel-head">Katalog</div>
+    <aside class="catalog" id="catalog-aside">
+      <div class="panel-head">Katalog <button class="drawer-close mobile-only" data-drawer="catalog">✕</button></div>
       <div class="cat-tabs" id="cat-tabs">
         <button data-cat="living" class="active">Salon</button>
         <button data-cat="kitchen">Kuchnia</button>
@@ -84,8 +87,8 @@ app.innerHTML = `
       <div class="hint" id="hint">Kliknij lub przeciągnij mebel z katalogu →</div>
       <div class="selpanel" id="selpanel"></div>
     </div>
-    <aside class="cart">
-      <div class="panel-head">Twój projekt / koszyk</div>
+    <aside class="cart" id="cart-aside">
+      <div class="panel-head">Twój projekt / koszyk <button class="drawer-close mobile-only" data-drawer="cart">✕</button></div>
       <div class="cart-items" id="cart-items"></div>
       <div class="cart-foot">
         <div class="total-row"><span class="lbl">Razem</span><span class="val" id="total">0 zł</span></div>
@@ -146,6 +149,41 @@ app.innerHTML = `
       <div class="modal-foot" id="checkout-foot"></div>
     </div>
   </div>
+  <div class="modal-overlay" id="help-modal">
+    <div class="modal">
+      <div class="modal-head"><span>❓ Jak to działa</span><button class="modal-close" id="help-close">✕</button></div>
+      <div class="modal-body help-body">
+        <h4>1. Dodaj meble</h4>
+        <p>Kliknij kartę w katalogu lub przeciągnij ją wprost na scenę. Wiszące (TV, szafki górne, obraz) same przylegają do ściany.</p>
+        <h4>2. Aranżuj</h4>
+        <p>Przeciągaj meble po podłodze (przyciąganie do siatki i do sąsiadów). Zaznaczony mebel możesz obrócić, przemalować, zduplikować lub usunąć. Meble nie wchodzą na siebie.</p>
+        <h4>3. Kamera</h4>
+        <p>Obracaj scenę przeciągając tło, przybliżaj kółkiem. „⬜ 2D" to rzut z góry, „🎯" resetuje widok.</p>
+        <h4>4. Zamów</h4>
+        <p>To, co ustawisz w pokoju, jest Twoim koszykiem. „Zamów aranżację" prowadzi przez koszyk → dane → potwierdzenie.</p>
+        <h4>Skróty klawiszowe</h4>
+        <table class="help-keys">
+          <tr><td>Obróć / Duplikuj</td><td><kbd>R</kbd> · <kbd>Ctrl</kbd>+<kbd>D</kbd></td></tr>
+          <tr><td>Usuń / Odznacz</td><td><kbd>Delete</kbd> · <kbd>Esc</kbd></td></tr>
+          <tr><td>Cofnij / Ponów</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Y</kbd></td></tr>
+          <tr><td>Precyzyjny ruch</td><td><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay welcome-overlay" id="welcome-modal">
+    <div class="modal welcome-card">
+      <div class="welcome-logo">🛋️</div>
+      <h2>Witaj w MebleLab 3D</h2>
+      <p>Zaprojektuj salon lub kuchnię w 3D — dodawaj meble, aranżuj na żywo i zamów całość jednym procesem.</p>
+      <div class="welcome-actions">
+        <button class="checkout" id="w-start">Zacznij projektować</button>
+        <button class="btn" id="w-template">✨ Wstaw gotową aranżację</button>
+        <button class="btn" id="w-help">Jak to działa?</button>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
 `;
 
 // —————————————————————— SCENA 3D ——————————————————————
@@ -842,6 +880,41 @@ $<HTMLButtonElement>('#btn-print').addEventListener('click', () => {
   w.document.close();
 });
 
+// —————————————————————— POMOC ——————————————————————
+const helpModal = $<HTMLDivElement>('#help-modal');
+$<HTMLButtonElement>('#btn-help').addEventListener('click', () => helpModal.classList.add('show'));
+$<HTMLButtonElement>('#help-close').addEventListener('click', () => helpModal.classList.remove('show'));
+helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.remove('show'); });
+
+// —————————————————————— PANELE WYSUWANE (mobile) ——————————————————————
+const backdrop = $<HTMLDivElement>('#drawer-backdrop');
+const catalogAside = $<HTMLElement>('#catalog-aside');
+const cartAside = $<HTMLElement>('#cart-aside');
+function openDrawer(which: 'catalog' | 'cart' | null): void {
+  catalogAside.classList.toggle('open', which === 'catalog');
+  cartAside.classList.toggle('open', which === 'cart');
+  backdrop.classList.toggle('show', which !== null);
+}
+function closeDrawers(): void {
+  catalogAside.classList.remove('open');
+  cartAside.classList.remove('open');
+  backdrop.classList.remove('show');
+}
+$<HTMLButtonElement>('#m-catalog').addEventListener('click', () => openDrawer(catalogAside.classList.contains('open') ? null : 'catalog'));
+$<HTMLButtonElement>('#m-cart').addEventListener('click', () => openDrawer(cartAside.classList.contains('open') ? null : 'cart'));
+backdrop.addEventListener('click', closeDrawers);
+document.querySelectorAll<HTMLButtonElement>('.drawer-close').forEach((b) => b.addEventListener('click', closeDrawers));
+
+// —————————————————————— POWITANIE (pierwsze wejście) ——————————————————————
+const welcomeModal = $<HTMLDivElement>('#welcome-modal');
+function closeWelcome(): void {
+  welcomeModal.classList.remove('show');
+  localStorage.setItem('meblelab3d-seen', '1');
+}
+$<HTMLButtonElement>('#w-start').addEventListener('click', closeWelcome);
+$<HTMLButtonElement>('#w-template').addEventListener('click', () => { closeWelcome(); templatesModal.classList.add('show'); });
+$<HTMLButtonElement>('#w-help').addEventListener('click', () => { closeWelcome(); helpModal.classList.add('show'); });
+
 // —————————————————————— SKRÓTY KLAWISZOWE ——————————————————————
 window.addEventListener('keydown', (e) => {
   // nie przechwytuj skrótów podczas pisania w polach tekstowych
@@ -857,10 +930,13 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowUp') { e.preventDefault(); planner.nudgeSelected(0, -1); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); planner.nudgeSelected(0, 1); }
   else if (e.key === 'Escape') {
-    if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
+    if (welcomeModal.classList.contains('show')) closeWelcome();
+    else if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
+    else if (helpModal.classList.contains('show')) helpModal.classList.remove('show');
     else if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
     else if (projectsModal.classList.contains('show')) projectsModal.classList.remove('show');
     else if (templatesModal.classList.contains('show')) templatesModal.classList.remove('show');
+    else if (catalogAside.classList.contains('open') || cartAside.classList.contains('open')) closeDrawers();
     else planner.select(null);
   }
 });
@@ -901,4 +977,5 @@ planner.onChange();
   pushHistory(); // stan początkowy w historii
   updateHistoryButtons();
   refreshApiStatus();
+  if (!localStorage.getItem('meblelab3d-seen')) welcomeModal.classList.add('show');
 })();

@@ -27,6 +27,8 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🖼️ **Miniatury 3D** produktów w katalogu (renderowane z modeli `.glb`) + **wyszukiwarka**.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **wydruk/PDF** podsumowania.
 - 🧭 **Uporządkowany interfejs** — pogrupowany pasek narzędzi, rzadsze akcje w menu „⋯".
+- 🚀 **Onboarding** — ekran powitalny przy pierwszym wejściu i modal pomocy ze skrótami (❓).
+- 📱 **Responsywność** — na wąskich ekranach katalog i koszyk działają jako wysuwane panele (dotyk).
 - 💾 **Zapis / odczyt** projektu i **zrzut PNG** aranżacji.
 
 ## Uruchomienie
