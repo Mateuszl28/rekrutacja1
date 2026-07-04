@@ -48,6 +48,17 @@ describe('generateLayout', () => {
     expect(full).toBeGreaterThanOrEqual(tight);
   });
 
+  it('to samo ziarno daje identyczną aranżację (determinizm)', () => {
+    const a = generateLayout({ ...base, seed: 42 });
+    const b = generateLayout({ ...base, seed: 42 });
+    expect(a).toEqual(b);
+  });
+
+  it('różne ziarna mogą dać różne aranżacje (wariacja)', () => {
+    const seeds = [1, 2, 3, 4, 5].map((s) => JSON.stringify(generateLayout({ ...base, seed: s })));
+    expect(new Set(seeds).size).toBeGreaterThan(1);
+  });
+
   it('mały pokój odrzuca meble, które się nie mieszczą', () => {
     const small = generateLayout({ kind: 'living', width: 2.5, depth: 2.5, style: 'cozy' });
     for (const p of small) {

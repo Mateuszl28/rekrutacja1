@@ -173,7 +173,7 @@ app.innerHTML = `
     <div class="modal gen-modal">
       <div class="modal-head"><span>🪄 Generator aranżacji</span><button class="modal-close" id="gen-close">✕</button></div>
       <div class="modal-body">
-        <p class="gen-hint">Wygeneruję gotową aranżację w bieżącym pokoju (<b id="gen-room"></b>, <span id="gen-dims"></span>). Ustaw styl i budżet — reszta dzieje się sama.</p>
+        <p class="gen-hint">Wygeneruję gotową aranżację w bieżącym pokoju (<b id="gen-room"></b>, <span id="gen-dims"></span>). Ustaw styl i budżet — a każde kliknięcie „Generuj" daje inny wariant.</p>
         <label class="gen-field">Styl
           <select id="gen-style">
             <option value="cozy">Przytulny</option>
@@ -712,6 +712,7 @@ compareBody.addEventListener('click', (e) => {
 const genModal = $<HTMLDivElement>('#gen-modal');
 const genRun = $<HTMLButtonElement>('#gen-run');
 const genNote = $<HTMLParagraphElement>('#gen-note');
+let genSeed = 0;
 
 function applyGenerated(placements: { productId: string; variant?: string; x: number; z: number; ry: number }[]): void {
   const defs: { product: ProductDef; variant?: string; dx: number; dz: number; ry?: number }[] = [];
@@ -747,7 +748,7 @@ genRun.addEventListener('click', async () => {
     const remote = await api.generateLayout({ kind: room.kind, width: room.width, depth: room.depth, style, budget, prompt: prompt || undefined, catalog });
     if (remote?.placements?.length) { placements = remote.placements; source = 'llm'; }
   } catch { /* backend/LLM niedostępny — fallback offline */ }
-  if (!placements) placements = generateLayout({ kind: room.kind, width: room.width, depth: room.depth, style, budget });
+  if (!placements) placements = generateLayout({ kind: room.kind, width: room.width, depth: room.depth, style, budget, seed: ++genSeed });
 
   genRun.disabled = false;
   if (!placements.length) { genNote.textContent = 'Nie udało się dobrać mebli dla tego pokoju.'; return; }

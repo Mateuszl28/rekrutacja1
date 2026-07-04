@@ -15,6 +15,18 @@ export interface GenParams {
   style: Style;
   /** Maksymalny budżet w PLN (opcjonalnie). */
   budget?: number;
+  /** Ziarno wariacji — to samo ziarno = ta sama aranżacja (różne = inne warianty/pozycje). */
+  seed?: number;
+}
+
+/** Deterministyczny PRNG (mulberry32) — powtarzalna wariacja przy tym samym ziarnie. */
+function mulberry32(a: number): () => number {
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 export interface GenPlacement {
@@ -110,12 +122,31 @@ function fitsInRoom(cand: Cand, w: number, d: number): boolean {
  */
 export function generateLayout(params: GenParams): GenPlacement[] {
   const { kind, width, depth, style, budget } = params;
+  const rng = mulberry32((params.seed ?? 0) >>> 0);
   let cands = (kind === 'kitchen' ? kitchenCandidates : livingCandidates)(width, depth, style).filter((c) =>
     fitsInRoom(c, width, depth)
   );
-  // zaciśnij pozycje do wnętrza pokoju (bezpieczny margines)
+
+  // wariacja: losowy wariant dywanu oraz lekkie odsunięcie dekoracji (deterministycznie wg ziarna)
+  const rugVariants = ['l', 's', 'xl'];
+  cands = cands.map((c) => {
+    let { x, z, variant } = c;
+    if (c.productId === 'rug') variant = rugVariants[Math.floor(rng() * rugVariants.length)];
+    if (c.optional && getProduct(c.productId)?.mount !== 'wall') {
+      x += (rng() - 0.5) * 0.3;
+      z += (rng() - 0.5) * 0.3;
+    }
+    return { ...c, x, z, variant };
+  });
+
+  // opcjonalny akcent: druga roślina w wolnym narożniku (tylko style bogatsze)
+  if (style !== 'minimal' && kind === 'living' && rng() > 0.5) {
+    cands.push({ productId: 'plant', x: -width / 2 + 0.5, z: depth / 2 - 0.5, ry: 0, optional: true, keep: 25 });
+  }
+
+  // zaciśnij pozycje do wnętrza pokoju (bezpieczny margines) i odrzuć te, które po jitterze wypadły
   const mx = width / 2 - 0.3, mz = depth / 2 - 0.3;
-  cands = cands.map((c) => ({ ...c, x: clamp(c.x, -mx, mx), z: clamp(c.z, -mz, mz) }));
+  cands = cands.filter((c) => fitsInRoom(c, width, depth)).map((c) => ({ ...c, x: clamp(c.x, -mx, mx), z: clamp(c.z, -mz, mz) }));
 
   if (budget && budget > 0) {
     const price = (c: Cand) => effectivePrice(getProduct(c.productId)!, c.variant);
