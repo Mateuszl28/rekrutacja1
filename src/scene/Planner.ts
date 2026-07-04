@@ -147,7 +147,7 @@ export class Planner {
     item.group.scale.set(w / bw, h / bh, d / bd);
   }
 
-  addProduct(product: ProductDef, color?: number, x = 0, z = 0, ry = 0, variantId?: string): PlacedItem {
+  addProduct(product: ProductDef, color?: number, x = 0, z = 0, ry = 0, variantId?: string, autoPlace = true): PlacedItem {
     const col = color ?? product.colors[0];
     const variant = getVariant(product, variantId);
     const group = instantiate(product.model, col);
@@ -169,16 +169,31 @@ export class Planner {
     this.items.push(item);
     if (this.isWall(item)) {
       this.snapWall(item, x, z);
-      this.resolveWallSpawn(item);
+      if (autoPlace) this.resolveWallSpawn(item);
     } else {
       this.clampToRoom(item);
-      this.resolveSpawnPosition(item);
+      if (autoPlace) this.resolveSpawnPosition(item);
     }
     this.select(item);
     this.updateCollisions();
     this.onChange();
     this.onCommit();
     return item;
+  }
+
+  /** Dodaje zestaw mebli wokół kotwicy (ax,az), zachowując układ; jedna operacja historii. */
+  addSet(defs: { product: ProductDef; variant?: string; dx: number; dz: number; ry?: number }[], ax = 0, az = 0): void {
+    const commit = this.onCommit;
+    this.onCommit = () => {}; // wstrzymaj zapis historii do końca zestawu
+    let last: PlacedItem | null = null;
+    for (const d of defs) {
+      last = this.addProduct(d.product, undefined, ax + d.dx, az + d.dz, d.ry ?? 0, d.variant, false);
+    }
+    this.onCommit = commit;
+    this.select(last);
+    this.updateCollisions();
+    this.onChange();
+    this.onCommit();
   }
 
   /** Szuka najbliższego wolnego miejsca przy dodawaniu (spirala po siatce). */

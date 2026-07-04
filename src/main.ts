@@ -7,6 +7,7 @@ import { renderThumbnails } from './furniture/thumbnails';
 import { api, type OrderPayloadItem, type OrderSummary } from './api';
 import { PRODUCTS, getProduct, getVariant, effectiveSize, effectivePrice } from './data/products';
 import { TEMPLATES } from './data/templates';
+import { SETS } from './data/sets';
 import type { RoomKind, ProductDef, PlacedItemState } from './types';
 
 const STORAGE_KEY = 'meblelab3d-projekt';
@@ -947,13 +948,24 @@ $<HTMLButtonElement>('#project-saveas').addEventListener('click', async () => {
 // —————————————————————— GOTOWE ARANŻACJE (modal) ——————————————————————
 const templatesModal = $<HTMLDivElement>('#templates-modal');
 const templatesBody = $<HTMLDivElement>('#templates-body');
-templatesBody.innerHTML = TEMPLATES.map(
-  (t) => `
+const roomTag = (k: RoomKind) => (k === 'kitchen' ? '🍳 kuchnia' : '🛋️ salon');
+templatesBody.innerHTML = `
+  <div class="tpl-group-title">Całe aranżacje <span>— zastępują zawartość pokoju</span></div>
+  ${TEMPLATES.map(
+    (t) => `
     <div class="order-row tpl-row" data-tpl="${t.id}">
       <div><div class="order-no">${t.name}</div><div class="order-meta">${t.description}</div></div>
       <button class="btn" data-tpl="${t.id}">Wstaw →</button>
     </div>`
-).join('');
+  ).join('')}
+  <div class="tpl-group-title">Zestawy mebli <span>— dodają się do bieżącego pokoju</span></div>
+  ${SETS.map(
+    (s) => `
+    <div class="order-row tpl-row" data-set="${s.id}">
+      <div><div class="order-no">${s.name} <span class="tpl-badge">${roomTag(s.category)}</span></div><div class="order-meta">${s.description}</div></div>
+      <button class="btn" data-set="${s.id}">Dodaj +</button>
+    </div>`
+  ).join('')}`;
 
 $<HTMLButtonElement>('#btn-templates').addEventListener('click', () => templatesModal.classList.add('show'));
 $<HTMLButtonElement>('#templates-close').addEventListener('click', () => templatesModal.classList.remove('show'));
@@ -961,7 +973,22 @@ templatesModal.addEventListener('click', (e) => {
   if (e.target === templatesModal) templatesModal.classList.remove('show');
 });
 templatesBody.addEventListener('click', (e) => {
-  const id = (e.target as HTMLElement).closest<HTMLElement>('[data-tpl]')?.dataset.tpl;
+  const el = e.target as HTMLElement;
+  const setId = el.closest<HTMLElement>('[data-set]')?.dataset.set;
+  if (setId) {
+    const set = SETS.find((s) => s.id === setId);
+    if (!set) return;
+    const defs: { product: ProductDef; variant?: string; dx: number; dz: number; ry?: number }[] = [];
+    for (const i of set.items) {
+      const product = getProduct(i.productId);
+      if (product) defs.push({ product, variant: i.variant, dx: i.dx, dz: i.dz, ry: i.ry });
+    }
+    planner.addSet(defs); // jedna operacja historii (onCommit → pushHistory)
+    templatesModal.classList.remove('show');
+    toast(`🧩 Dodano zestaw „${set.name}” (${defs.length} elem.)`);
+    return;
+  }
+  const id = el.closest<HTMLElement>('[data-tpl]')?.dataset.tpl;
   const t = TEMPLATES.find((x) => x.id === id);
   if (!t) return;
   const snap = {

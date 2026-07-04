@@ -221,6 +221,10 @@ aside.cart { border-left: 1px solid var(--line); }
 }
 .tpl-row { cursor: pointer; }
 .tpl-row:hover { outline: 1px solid var(--accent-2); }
+.tpl-group-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 2px 8px; }
+.tpl-group-title:first-child { margin-top: 0; }
+.tpl-group-title span { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.tpl-badge { font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
 .card .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .card .name { font-weight: 600; font-size: 14px; }
 .card .price { color: var(--accent); font-weight: 700; font-size: 14px; white-space: nowrap; }
