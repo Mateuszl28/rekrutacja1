@@ -15,6 +15,9 @@
 
 * { box-sizing: border-box; }
 
+/* atrybut `hidden` musi zawsze wygrywać z regułami display klas (np. .menu, formularze) */
+[hidden] { display: none !important; }
+
 html, body { margin: 0; height: 100%; }
 
 body {
