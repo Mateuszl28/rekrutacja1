@@ -16,6 +16,20 @@ export interface OrderResult {
   createdAt: string;
 }
 
+export interface Customer {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export interface OrderPayload {
+  items: OrderPayloadItem[];
+  total: number;
+  room: RoomKind;
+  customer?: Customer;
+  delivery?: { method: string; address: string };
+}
+
 export interface Snapshot {
   room: { kind: RoomKind; width: number; depth: number; wallColor: number };
   items: PlacedItemState[];
@@ -61,8 +75,7 @@ async function del<T>(url: string): Promise<T | null> {
 
 export const api = {
   health: () => req<{ ok: boolean; orders: number }>('/api/health'),
-  placeOrder: (payload: { items: OrderPayloadItem[]; total: number; room: RoomKind }) =>
-    post<OrderResult>('/api/orders', payload),
+  placeOrder: (payload: OrderPayload) => post<OrderResult>('/api/orders', payload),
   listOrders: () => req<OrderSummary[]>('/api/orders'),
   saveCart: (snapshot: Snapshot) => post<{ id: string }>('/api/cart', { snapshot }),
   loadCart: (id: string) => req<{ snapshot: Snapshot }>(`/api/cart/${id}`),

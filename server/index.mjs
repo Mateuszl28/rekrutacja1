@@ -125,9 +125,13 @@ const server = createServer(async (req, res) => {
           room: body.room ?? null,
           total: Number(body.total) || 0,
           count: items.reduce((s, i) => s + (i.qty || 1), 0),
+          customer: body.customer ?? null,
+          delivery: body.delivery ?? null,
+          items,
         });
         persist(db);
-        console.log(`[order] #${orderNo}  ${Number(body.total) || 0} zł`);
+        const who = body.customer?.name ? ` — ${body.customer.name}` : '';
+        console.log(`[order] #${orderNo}  ${Number(body.total) || 0} zł${who}`);
         return json(res, 201, { orderNo, createdAt });
       }
       if (req.method === 'POST' && pathname === '/api/cart') {

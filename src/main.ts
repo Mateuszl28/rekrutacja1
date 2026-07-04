@@ -31,19 +31,31 @@ app.innerHTML = `
     <span class="spacer"></span>
     <span class="api-status offline" id="api-status" title="Status backendu koszyka">● API</span>
     <div class="tools">
-      <button class="btn" id="btn-undo" title="Cofnij (Ctrl+Z)">↶</button>
-      <button class="btn" id="btn-redo" title="Ponów (Ctrl+Y)">↷</button>
-      <button class="btn" id="btn-view">⬜ Widok 2D</button>
-      <button class="btn active" id="btn-snap">🧲 Siatka</button>
-      <button class="btn" id="btn-reset" title="Reset kamery">🎯</button>
-      <button class="btn" id="btn-shot" title="Zapisz zrzut PNG">📸</button>
-      <button class="btn" id="btn-save">💾 Zapisz</button>
-      <button class="btn" id="btn-load">📂 Wczytaj</button>
+      <div class="tool-group">
+        <button class="btn icon" id="btn-undo" title="Cofnij (Ctrl+Z)">↶</button>
+        <button class="btn icon" id="btn-redo" title="Ponów (Ctrl+Y)">↷</button>
+      </div>
+      <div class="tool-group">
+        <button class="btn" id="btn-view" title="Rzut z góry / 3D">⬜ 2D</button>
+        <button class="btn active" id="btn-snap" title="Przyciąganie do siatki">🧲</button>
+        <button class="btn icon" id="btn-reset" title="Reset kamery">🎯</button>
+      </div>
       <button class="btn" id="btn-templates" title="Gotowe aranżacje">✨ Aranżacje</button>
-      <button class="btn" id="btn-projects" title="Moje projekty (backend)">📁 Projekty</button>
-      <button class="btn" id="btn-orders" title="Historia zamówień (backend)">📋 Zamówienia</button>
-      <button class="btn" id="btn-print" title="Podsumowanie / wydruk PDF">🧾 PDF</button>
-      <button class="btn danger" id="btn-clear">🗑️</button>
+      <div class="menu-wrap">
+        <button class="btn" id="btn-menu" title="Więcej opcji">⋯ Menu</button>
+        <div class="menu" id="menu" hidden>
+          <button class="menu-item" id="btn-projects">📁 Moje projekty</button>
+          <button class="menu-item" id="btn-orders">📋 Historia zamówień</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" id="btn-save">💾 Zapisz projekt</button>
+          <button class="menu-item" id="btn-load">📂 Wczytaj projekt</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" id="btn-print">🧾 Podsumowanie / PDF</button>
+          <button class="menu-item" id="btn-shot">📸 Zrzut ekranu PNG</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item danger" id="btn-clear">🗑️ Wyczyść projekt</button>
+        </div>
+      </div>
     </div>
   </header>
   <div class="layout">
@@ -103,6 +115,35 @@ app.innerHTML = `
     <div class="modal">
       <div class="modal-head"><span>✨ Gotowe aranżacje</span><button class="modal-close" id="templates-close">✕</button></div>
       <div class="modal-body" id="templates-body"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="checkout-modal">
+    <div class="modal">
+      <div class="modal-head"><span>🛒 Zamówienie</span><button class="modal-close" id="checkout-close">✕</button></div>
+      <div class="stepper" id="stepper">
+        <div class="step active" data-s="1"><b>1</b> Koszyk</div>
+        <div class="step" data-s="2"><b>2</b> Dane i dostawa</div>
+        <div class="step" data-s="3"><b>3</b> Potwierdzenie</div>
+      </div>
+      <div class="modal-body">
+        <div class="cstep" id="cstep-1"></div>
+        <div class="cstep" id="cstep-2" hidden>
+          <div class="form-grid">
+            <label class="fg-full">Imię i nazwisko *<input id="co-name" type="text" autocomplete="name" placeholder="Jan Kowalski"></label>
+            <label>E-mail *<input id="co-email" type="email" autocomplete="email" placeholder="jan@example.com"></label>
+            <label>Telefon<input id="co-phone" type="tel" autocomplete="tel" placeholder="600 000 000"></label>
+            <div class="fg-full delivery">
+              <span class="ctrl-label">Dostawa</span>
+              <label class="radio"><input type="radio" name="co-del" value="Kurier" checked> 🚚 Kurier (0 zł)</label>
+              <label class="radio"><input type="radio" name="co-del" value="Odbiór osobisty"> 🏬 Odbiór osobisty</label>
+            </div>
+            <label class="fg-full" id="co-addr-wrap">Adres dostawy *<input id="co-addr" type="text" autocomplete="street-address" placeholder="ul. Przykładowa 1, 00-000 Miasto"></label>
+          </div>
+          <div class="form-err" id="co-err" hidden></div>
+        </div>
+        <div class="cstep" id="cstep-3" hidden></div>
+      </div>
+      <div class="modal-foot" id="checkout-foot"></div>
     </div>
   </div>
 `;
@@ -510,20 +551,104 @@ cartItemsEl.addEventListener('click', (e) => {
   if (row?.dataset.id) planner.focusProduct(row.dataset.id);
 });
 
-checkoutBtn.addEventListener('click', async () => {
-  if (!planner.items.length) return;
-  if (planner.hasOverlaps()) { toast('⚠ Popraw kolizje mebli przed zamówieniem'); return; }
-  const total = planner.items.reduce((s, i) => s + i.product.price, 0);
-  checkoutBtn.disabled = true;
-  const res = await api.placeOrder({ items: orderItems(), total, room: room.kind });
-  checkoutBtn.disabled = false;
-  if (res) {
-    toast(`✅ Zamówienie #${res.orderNo} przyjęte — ${zl.format(total)}`);
-    refreshApiStatus();
-  } else {
-    toast(`✅ Zamówienie złożone (offline) — ${zl.format(total)}`);
-  }
+// menu rozwijane („⋯ Menu")
+const menuEl = $<HTMLDivElement>('#menu');
+const btnMenu = $<HTMLButtonElement>('#btn-menu');
+btnMenu.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const willOpen = menuEl.hidden;
+  menuEl.hidden = !willOpen;
+  btnMenu.classList.toggle('active', willOpen);
 });
+document.addEventListener('click', () => {
+  if (!menuEl.hidden) { menuEl.hidden = true; btnMenu.classList.remove('active'); }
+});
+
+// —————————————————————— PROCES ZAMÓWIENIA (checkout) ——————————————————————
+const checkoutModal = $<HTMLDivElement>('#checkout-modal');
+const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+const totalOf = () => planner.items.reduce((s, i) => s + i.product.price, 0);
+
+function openCheckout(): void {
+  if (!planner.items.length) { toast('Dodaj meble do projektu, aby zamówić'); return; }
+  if (planner.hasOverlaps()) { toast('⚠ Popraw kolizje mebli przed zamówieniem'); return; }
+  gotoStep(1);
+  checkoutModal.classList.add('show');
+}
+
+function updateAddrVisibility(): void {
+  const method = (document.querySelector('input[name="co-del"]:checked') as HTMLInputElement)?.value;
+  $<HTMLElement>('#co-addr-wrap').hidden = method !== 'Kurier';
+}
+
+function gotoStep(n: number): void {
+  for (const s of [1, 2, 3]) $<HTMLElement>(`#cstep-${s}`).hidden = s !== n;
+  document.querySelectorAll<HTMLElement>('#stepper .step').forEach((el) => {
+    const s = Number(el.dataset.s);
+    el.classList.toggle('active', s === n);
+    el.classList.toggle('done', s < n);
+  });
+  const foot = $<HTMLDivElement>('#checkout-foot');
+  if (n === 1) {
+    const items = orderItems();
+    $<HTMLDivElement>('#cstep-1').innerHTML =
+      `<div class="co-cart">${items
+        .map((i) => `<div class="cart-item"><div><div class="ci-name"><span class="qty-badge">${i.qty}×</span>${i.name}</div><div class="ci-sub">${zl.format(i.price)} / szt.</div></div><div class="ci-price">${zl.format(i.price * i.qty)}</div></div>`)
+        .join('')}</div><div class="co-total"><span>Razem</span><b>${zl.format(totalOf())}</b></div>`;
+    foot.innerHTML = `<button class="btn" id="co-cancel">Anuluj</button><button class="checkout" id="co-next">Dalej: dane →</button>`;
+    $<HTMLButtonElement>('#co-cancel').onclick = () => checkoutModal.classList.remove('show');
+    $<HTMLButtonElement>('#co-next').onclick = () => gotoStep(2);
+  } else if (n === 2) {
+    foot.innerHTML = `<button class="btn" id="co-back">← Wstecz</button><button class="checkout" id="co-submit">Złóż zamówienie</button>`;
+    $<HTMLButtonElement>('#co-back').onclick = () => gotoStep(1);
+    $<HTMLButtonElement>('#co-submit').onclick = submitOrder;
+    updateAddrVisibility();
+  } else {
+    foot.innerHTML = `<button class="checkout" id="co-done">Zamknij</button>`;
+    $<HTMLButtonElement>('#co-done').onclick = () => checkoutModal.classList.remove('show');
+  }
+}
+
+async function submitOrder(): Promise<void> {
+  const val = (id: string) => ($<HTMLInputElement>(id).value || '').trim();
+  const name = val('#co-name');
+  const email = val('#co-email');
+  const phone = val('#co-phone');
+  const method = (document.querySelector('input[name="co-del"]:checked') as HTMLInputElement)?.value || 'Kurier';
+  const address = val('#co-addr');
+  const err = $<HTMLDivElement>('#co-err');
+  const problems: string[] = [];
+  if (name.length < 3) problems.push('imię i nazwisko');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) problems.push('poprawny e-mail');
+  if (method === 'Kurier' && address.length < 5) problems.push('adres dostawy');
+  if (problems.length) { err.hidden = false; err.textContent = 'Uzupełnij: ' + problems.join(', ') + '.'; return; }
+  err.hidden = true;
+
+  const submitBtn = $<HTMLButtonElement>('#co-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Wysyłanie…';
+  const total = totalOf();
+  const res = await api.placeOrder({
+    items: orderItems(),
+    total,
+    room: room.kind,
+    customer: { name, email, phone },
+    delivery: { method, address: method === 'Kurier' ? address : '—' },
+  });
+  refreshApiStatus();
+  const no = res ? `#${res.orderNo}` : '(offline)';
+  $<HTMLDivElement>('#cstep-3').innerHTML =
+    `<div class="co-confirm"><div class="co-check">✅</div><h3>Dziękujemy, ${escHtml(name)}!</h3>
+    <p>Zamówienie <b>${no}</b> zostało przyjęte.</p>
+    <p class="co-sub">${escHtml(method)}${method === 'Kurier' ? ' → ' + escHtml(address) : ''}<br>Potwierdzenie wyślemy na <b>${escHtml(email)}</b>.</p>
+    <div class="co-total"><span>Wartość</span><b>${zl.format(total)}</b></div></div>`;
+  gotoStep(3);
+}
+
+checkoutBtn.addEventListener('click', openCheckout);
+$<HTMLButtonElement>('#checkout-close').addEventListener('click', () => checkoutModal.classList.remove('show'));
+checkoutModal.addEventListener('click', (e) => { if (e.target === checkoutModal) checkoutModal.classList.remove('show'); });
+document.querySelectorAll('input[name="co-del"]').forEach((r) => r.addEventListener('change', updateAddrVisibility));
 
 async function refreshApiStatus(): Promise<void> {
   const el = $<HTMLSpanElement>('#api-status');
@@ -732,7 +857,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowUp') { e.preventDefault(); planner.nudgeSelected(0, -1); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); planner.nudgeSelected(0, 1); }
   else if (e.key === 'Escape') {
-    if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
+    if (checkoutModal.classList.contains('show')) checkoutModal.classList.remove('show');
+    else if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
     else if (projectsModal.classList.contains('show')) projectsModal.classList.remove('show');
     else if (templatesModal.classList.contains('show')) templatesModal.classList.remove('show');
     else planner.select(null);
