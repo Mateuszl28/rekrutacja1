@@ -14,6 +14,7 @@ import type { RoomKind, ProductDef, PlacedItemState } from './types';
 const STORAGE_KEY = 'meblelab3d-projekt';
 const CLOUD_ID_KEY = 'meblelab3d-cloud-id';
 const THEME_KEY = 'meblelab3d-theme';
+const FAV_KEY = 'meblelab3d-ulubione';
 const WALL_COLORS = [0xe7ded3, 0xeef1f4, 0xd7e3dd, 0xe6d9d2, 0xdfe3ea, 0xcdd3da, 0x3b4a63, 0x2f3640];
 
 const zl = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 });
@@ -82,6 +83,7 @@ app.innerHTML = `
           <option value="price-desc">Cena ↓</option>
           <option value="name">Nazwa A–Z</option>
         </select>
+        <button class="fav-toggle" id="fav-toggle" title="Pokaż tylko ulubione" aria-pressed="false">♥ <span id="fav-count">0</span></button>
       </div>
       <div class="price-chips" id="price-chips">
         <button class="chip active" data-price="all">Każda cena</button>
@@ -314,8 +316,34 @@ let currentCat: RoomKind = 'living';
 let searchQuery = '';
 let sortMode = 'default';
 let priceFilter = 'all';
+let favOnly = false;
 let thumbs: Map<string, string> | null = null;
 const thumbCache = new Map<string, string>(); // klucz `${id}|${color}` — miniatury w wybranym kolorze
+
+const favorites = new Set<string>(loadFavorites());
+function loadFavorites(): string[] {
+  try {
+    const raw = localStorage.getItem(FAV_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+function saveFavorites(): void {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch { /* brak localStorage */ }
+}
+function toggleFavorite(id: string): void {
+  if (favorites.has(id)) favorites.delete(id);
+  else favorites.add(id);
+  saveFavorites();
+  syncFavUI();
+}
+function syncFavUI(): void {
+  const countEl = document.querySelector<HTMLElement>('#fav-count');
+  if (countEl) countEl.textContent = String(favorites.size);
+  const toggle = document.querySelector<HTMLButtonElement>('#fav-toggle');
+  if (toggle) { toggle.classList.toggle('active', favOnly); toggle.setAttribute('aria-pressed', String(favOnly)); }
+}
 
 function inPriceRange(price: number): boolean {
   if (priceFilter === '0-500') return price < 500;
@@ -330,7 +358,8 @@ function renderCatalog(cat: RoomKind): void {
     (p) =>
       p.category === cat &&
       (!q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)) &&
-      inPriceRange(effectivePrice(p, chosenVariant.get(p.id)))
+      inPriceRange(effectivePrice(p, chosenVariant.get(p.id))) &&
+      (!favOnly || favorites.has(p.id))
   );
   if (sortMode === 'price-asc') list.sort((a, b) => a.price - b.price);
   else if (sortMode === 'price-desc') list.sort((a, b) => b.price - a.price);
@@ -363,6 +392,7 @@ function renderCatalog(cat: RoomKind): void {
         <div class="card" draggable="true" data-id="${p.id}">
           <div class="thumb-wrap">
             ${thumb ? `<img class="thumb" src="${thumb}" alt="${p.name}" draggable="false">` : '<div class="thumb thumb-ph"></div>'}
+            <button class="fav-btn ${favorites.has(p.id) ? 'on' : ''}" data-fav title="Dodaj do ulubionych" aria-label="Ulubione">${favorites.has(p.id) ? '♥' : '♡'}</button>
             <button class="qv-btn" data-qv title="Szybki podgląd">⤢</button>
           </div>
           <div class="row"><span class="name">${p.name}</span><span class="price">${zl.format(price)}</span></div>
@@ -385,6 +415,17 @@ cardsEl.addEventListener('click', (e) => {
   if (target.closest('.variant-sel')) return; // interakcja z selektorem wariantu
   const product = PRODUCTS.find((p) => p.id === card.dataset.id)!;
   if (target.closest('[data-qv]')) { openProduct(product); return; }
+  if (target.closest('[data-fav]')) {
+    toggleFavorite(product.id);
+    if (favOnly) renderCatalog(currentCat); // zniknie z listy „tylko ulubione"
+    else {
+      const btn = target.closest<HTMLButtonElement>('[data-fav]')!;
+      const on = favorites.has(product.id);
+      btn.classList.toggle('on', on);
+      btn.textContent = on ? '♥' : '♡';
+    }
+    return;
+  }
   const sw = target.closest<HTMLElement>('.swatch');
   if (sw) {
     const color = Number(sw.dataset.color);
@@ -435,6 +476,11 @@ $<HTMLInputElement>('#cat-search').addEventListener('input', (e) => {
 });
 $<HTMLSelectElement>('#cat-sort').addEventListener('change', (e) => {
   sortMode = (e.target as HTMLSelectElement).value;
+  renderCatalog(currentCat);
+});
+$<HTMLButtonElement>('#fav-toggle').addEventListener('click', () => {
+  favOnly = !favOnly;
+  syncFavUI();
   renderCatalog(currentCat);
 });
 const priceChips = $<HTMLDivElement>('#price-chips');
@@ -1518,6 +1564,7 @@ const loadingText = $<HTMLDivElement>('#loading-text');
 
 renderCatalog('living');
 syncRoomUI();
+syncFavUI();
 planner.onChange();
 
 (async () => {

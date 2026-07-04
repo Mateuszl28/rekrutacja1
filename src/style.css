@@ -277,6 +277,23 @@ aside.cart { border-left: 1px solid var(--line); }
 }
 .card:hover .qv-btn { opacity: 1; transform: none; }
 .qv-btn:hover { border-color: var(--accent-2); }
+.fav-btn {
+  position: absolute; top: 6px; left: 6px; width: 28px; height: 28px;
+  border: 1px solid var(--hud-line); background: var(--hud-bg); color: var(--hud-text);
+  border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1; opacity: 0;
+  transform: translateY(-2px); transition: opacity 0.14s, transform 0.14s, color 0.14s; backdrop-filter: blur(4px);
+}
+.card:hover .fav-btn, .fav-btn.on { opacity: 1; transform: none; }
+.fav-btn.on { color: #ff5d73; border-color: #ff5d73; }
+.fav-btn:hover { border-color: #ff5d73; color: #ff5d73; }
+
+.fav-toggle {
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  border-radius: 8px; padding: 0 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; transition: all 0.12s;
+}
+.fav-toggle:hover { border-color: #ff5d73; color: var(--text); }
+.fav-toggle.active { background: #ff5d73; border-color: #ff5d73; color: #fff; }
 
 /* Szybki podgląd produktu */
 .product-modal { max-width: 720px; width: 92vw; }

@@ -32,6 +32,7 @@ ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapł
 - 🎨 **Własne kolory** — dowolny odcień ścian i zaznaczonego mebla (natywny próbnik koloru), obok gotowych próbek.
 - 🖼️ **Miniatury 3D** produktów w katalogu (renderowane z modeli `.glb`) + **wyszukiwarka**.
 - 🔍 **Szybki podgląd produktu** — modal z interaktywnym modelem 3D (auto-obrót + przeciąganie), zmianą wariantu i koloru na żywo, wymiarami i przyciskiem „Dodaj do projektu".
+- ♥ **Ulubione / lista życzeń** — serce na kartach, licznik i filtr „tylko ulubione"; wybór zapamiętywany w przeglądarce.
 - ✨ **Gotowe aranżacje** (jeden klik umeblowuje pokój) i **zestawy mebli** (np. stół + 6 krzeseł, strefa wypoczynku) dodawane do bieżącego pokoju jako jedna operacja.
 - 🧾 **Wydruk/PDF** podsumowania zamówienia.
 - 📐 **Rzut 2D z wymiarami** — schematyczny widok z góry (SVG, skala zachowana) z gabarytami mebli, numeracją, legendą i wymiarami ścian; gotowy do druku/PDF.
