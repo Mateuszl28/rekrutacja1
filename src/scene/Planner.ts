@@ -416,6 +416,9 @@ export class Planner {
       const g = 0.25;
       nx = Math.round(nx / g) * g;
       nz = Math.round(nz / g) * g;
+      const m = this.magnetSnap(item, nx, nz, ry); // przyciąganie do krawędzi sąsiadów/ścian
+      nx = m.x;
+      nz = m.z;
     }
     // ogranicz do wnętrza pokoju
     const { hx, hz } = this.halfExtents(item.product, ry);
@@ -455,6 +458,46 @@ export class Planner {
     const c = Math.abs(Math.cos(ry));
     const s = Math.abs(Math.sin(ry));
     return { hx: (c * w + s * d) / 2, hz: (s * w + c * d) / 2 };
+  }
+
+  /** Magnetyczne wyrównanie do krawędzi/środków sąsiadów oraz do ścian. */
+  private magnetSnap(item: PlacedItem, x: number, z: number, ry: number): { x: number; z: number } {
+    const thr = 0.16;
+    const { hx, hz } = this.halfExtents(item.product, ry);
+    const b = this.room.bounds;
+    const xt: number[] = [b.minX + hx, b.maxX - hx];
+    const zt: number[] = [b.minZ + hz, b.maxZ - hz];
+    for (const o of this.items) {
+      if (o === item || !this.isSolid(o)) continue;
+      const ob = this.aabbOf(o);
+      xt.push(ob.minX - hx, ob.maxX + hx, (ob.minX + ob.maxX) / 2);
+      zt.push(ob.minZ - hz, ob.maxZ + hz, (ob.minZ + ob.maxZ) / 2);
+    }
+    let bx = x, dx = thr;
+    for (const t of xt) { const d = Math.abs(t - x); if (d < dx) { dx = d; bx = t; } }
+    let bz = z, dz = thr;
+    for (const t of zt) { const d = Math.abs(t - z); if (d < dz) { dz = d; bz = t; } }
+    return { x: bx, z: bz };
+  }
+
+  /** Zaznacza pierwszy mebel danego produktu i centruje na nim kamerę. */
+  focusProduct(productId: string): void {
+    const item = this.items.find((i) => i.product.id === productId);
+    if (!item) return;
+    this.select(item);
+    const center = new THREE.Vector3();
+    new THREE.Box3().setFromObject(item.group).getCenter(center);
+    this.sm.focusOn(center);
+  }
+
+  /** Usuwa jedną (ostatnio dodaną) sztukę danego produktu. */
+  removeOneOfProduct(productId: string): void {
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      if (this.items[i].product.id === productId) {
+        this.remove(this.items[i]);
+        return;
+      }
+    }
   }
 
   private clampToRoom(item: PlacedItem): void {

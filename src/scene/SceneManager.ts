@@ -15,6 +15,8 @@ export class SceneManager {
   private container: HTMLElement;
   private updaters: Array<(dt: number) => void> = [];
   private clock = new THREE.Clock();
+  private hemi!: THREE.HemisphereLight;
+  private sun!: THREE.DirectionalLight;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -53,26 +55,50 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x8d8d94, 1.1);
-    this.scene.add(hemi);
+    this.hemi = new THREE.HemisphereLight(0xffffff, 0x8d8d94, 1.1);
+    this.scene.add(this.hemi);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-    sun.position.set(8, 12, 6);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 40;
+    this.sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    this.sun.position.set(8, 12, 6);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.camera.near = 1;
+    this.sun.shadow.camera.far = 40;
     const s = 12;
-    sun.shadow.camera.left = -s;
-    sun.shadow.camera.right = s;
-    sun.shadow.camera.top = s;
-    sun.shadow.camera.bottom = -s;
-    sun.shadow.bias = -0.0004;
-    this.scene.add(sun);
+    this.sun.shadow.camera.left = -s;
+    this.sun.shadow.camera.right = s;
+    this.sun.shadow.camera.top = s;
+    this.sun.shadow.camera.bottom = -s;
+    this.sun.shadow.bias = -0.0004;
+    this.scene.add(this.sun);
 
     const fill = new THREE.DirectionalLight(0xffffff, 0.5);
     fill.position.set(-6, 5, -4);
     this.scene.add(fill);
+  }
+
+  /** Ustawia porę dnia (0 = noc, 1 = południe) — wpływa na światło, tło i ekspozycję. */
+  setDaylight(t: number): void {
+    const day = THREE.MathUtils.clamp(t, 0, 1);
+    this.sun.intensity = 0.25 + day * 2.1;
+    this.hemi.intensity = 0.35 + day * 0.9;
+    const warm = new THREE.Color(0xffca82);
+    const white = new THREE.Color(0xffffff);
+    this.sun.color.copy(warm).lerp(white, Math.min(1, day * 1.4));
+    this.sun.position.set(8, 3 + day * 10, 6);
+
+    const night = new THREE.Color(0x161d2b);
+    const noon = new THREE.Color(0xdfe3e8);
+    const bg = night.clone().lerp(noon, day);
+    (this.scene.background as THREE.Color).copy(bg);
+    if (this.scene.fog) (this.scene.fog as THREE.Fog).color.copy(bg);
+    this.renderer.toneMappingExposure = 0.85 + day * 0.35;
+  }
+
+  /** Płynnie centruje kamerę na wskazanym punkcie (zachowując kierunek patrzenia). */
+  focusOn(point: THREE.Vector3): void {
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    this.animateCamera(point.clone().add(offset), point.clone());
   }
 
   onUpdate(fn: (dt: number) => void): void {

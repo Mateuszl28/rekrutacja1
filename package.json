@@ -8,6 +8,8 @@
     "dev": "vite",
     "server": "node server/index.mjs",
     "dev:full": "concurrently -k -n web,api -c cyan,magenta \"vite\" \"node server/index.mjs\"",
+    "start": "node server/index.mjs",
+    "deploy": "npm run build && node server/index.mjs",
     "models": "node scripts/export-glb.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

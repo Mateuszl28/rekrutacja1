@@ -127,6 +127,18 @@ aside.cart { border-left: 1px solid var(--line); }
 }
 .cat-tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--accent-2); }
 
+.cat-search {
+  margin: 0 12px 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+.cat-search:focus { border-color: var(--accent-2); }
+
 .cards { padding: 4px 12px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 
 /* —————————— KONFIGURACJA POKOJU —————————— */
@@ -217,7 +229,21 @@ aside.cart { border-left: 1px solid var(--line); }
 .cart-item { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; background: var(--panel-2); border-radius: 8px; font-size: 13px; }
 .cart-item .ci-name { font-weight: 500; }
 .cart-item .ci-sub { color: var(--muted); font-size: 11px; }
+.cart-item { cursor: pointer; transition: background 0.12s; }
+.cart-item:hover { background: var(--line); }
+.cart-item .ci-right { display: flex; align-items: center; gap: 8px; }
 .cart-item .ci-price { color: var(--text); font-weight: 600; white-space: nowrap; }
+.ci-remove {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.ci-remove:hover { border-color: var(--danger); color: var(--danger); }
 .qty-badge { display: inline-block; background: var(--accent-2); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 700; margin-right: 6px; }
 
 .cart-foot { border-top: 1px solid var(--line); padding: 14px 16px; position: sticky; bottom: 0; background: var(--panel); }
@@ -348,6 +374,9 @@ aside.cart { border-left: 1px solid var(--line); }
 .order-no { font-weight: 600; font-size: 14px; }
 .order-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .order-total { color: var(--accent); font-weight: 700; white-space: nowrap; }
+.proj-actions { display: flex; gap: 6px; }
+.proj-actions .btn { padding: 6px 10px; font-size: 12px; }
+.modal-foot { padding: 12px 18px 16px; border-top: 1px solid var(--line); }
 
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }

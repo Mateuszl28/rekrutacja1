@@ -37,6 +37,7 @@ app.innerHTML = `
       <button class="btn" id="btn-shot" title="Zapisz zrzut PNG">📸</button>
       <button class="btn" id="btn-save">💾 Zapisz</button>
       <button class="btn" id="btn-load">📂 Wczytaj</button>
+      <button class="btn" id="btn-projects" title="Moje projekty (backend)">📁 Projekty</button>
       <button class="btn" id="btn-orders" title="Historia zamówień (backend)">📋 Zamówienia</button>
       <button class="btn danger" id="btn-clear">🗑️</button>
     </div>
@@ -48,6 +49,7 @@ app.innerHTML = `
         <button data-cat="living" class="active">Salon</button>
         <button data-cat="kitchen">Kuchnia</button>
       </div>
+      <input class="cat-search" id="cat-search" type="search" placeholder="🔍 Szukaj mebla…" />
       <div class="cards" id="cards"></div>
       <div class="room-ctrl">
         <div class="panel-head" style="position:static;padding:0 0 8px">Pomieszczenie</div>
@@ -58,6 +60,8 @@ app.innerHTML = `
         <div class="area-info" id="area-info"></div>
         <div class="ctrl-label">Kolor ścian</div>
         <div class="wall-colors" id="wall-colors"></div>
+        <label class="ctrl" style="margin-top:12px">Pora dnia <output id="out-day"></output>
+          <input type="range" id="in-day" min="0" max="1" step="0.02" value="0.85"></label>
       </div>
     </aside>
     <div class="viewport" id="viewport">
@@ -82,6 +86,13 @@ app.innerHTML = `
     <div class="modal">
       <div class="modal-head"><span>📋 Historia zamówień</span><button class="modal-close" id="orders-close">✕</button></div>
       <div class="modal-body" id="orders-body"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="projects-modal">
+    <div class="modal">
+      <div class="modal-head"><span>📁 Moje projekty</span><button class="modal-close" id="projects-close">✕</button></div>
+      <div class="modal-body" id="projects-body"></div>
+      <div class="modal-foot"><button class="checkout" id="project-saveas">💾 Zapisz bieżący jako…</button></div>
     </div>
   </div>
 `;
@@ -151,9 +162,17 @@ planner.onCommit = pushHistory;
 const cardsEl = $<HTMLDivElement>('#cards');
 const chosenColor = new Map<string, number>();
 let currentCat: RoomKind = 'living';
+let searchQuery = '';
 
 function renderCatalog(cat: RoomKind): void {
-  const list = PRODUCTS.filter((p) => p.category === cat);
+  const q = searchQuery.trim().toLowerCase();
+  const list = PRODUCTS.filter(
+    (p) => p.category === cat && (!q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+  );
+  if (list.length === 0) {
+    cardsEl.innerHTML = `<div class="cart-empty">Brak mebli dla „${searchQuery}”.</div>`;
+    return;
+  }
   cardsEl.innerHTML = list
     .map((p) => {
       const active = chosenColor.get(p.id) ?? p.colors[0];
@@ -212,6 +231,12 @@ viewport.addEventListener('drop', (e) => {
     const product = PRODUCTS.find((p) => p.id === id);
     if (product) planner.addProductAtScreen(product, color, e.clientX, e.clientY);
   } catch { /* ignoruj */ }
+});
+
+// wyszukiwarka katalogu
+$<HTMLInputElement>('#cat-search').addEventListener('input', (e) => {
+  searchQuery = (e.target as HTMLInputElement).value;
+  renderCatalog(currentCat);
 });
 
 // zakładki katalogu
@@ -274,6 +299,18 @@ inW.addEventListener('input', onSize);
 inD.addEventListener('input', onSize);
 inW.addEventListener('change', pushHistory);
 inD.addEventListener('change', pushHistory);
+
+// pora dnia (oświetlenie sceny)
+const inDay = $<HTMLInputElement>('#in-day');
+const outDay = $<HTMLOutputElement>('#out-day');
+const dayLabel = (v: number) => (v < 0.25 ? '🌙 noc' : v < 0.55 ? '🌆 zmierzch' : v < 0.82 ? '⛅ popołudnie' : '☀️ dzień');
+const onDay = () => {
+  const v = Number(inDay.value);
+  sm.setDaylight(v);
+  outDay.textContent = dayLabel(v);
+};
+inDay.addEventListener('input', onDay);
+onDay();
 
 /** Synchronizuje kontrolki UI ze stanem pokoju (po zmianie/cofnięciu). */
 function syncRoomUI(): void {
@@ -422,10 +459,13 @@ planner.onChange = () => {
     cartItemsEl.innerHTML = [...groups.values()]
       .map(
         ({ product, qty }) => `
-        <div class="cart-item">
+        <div class="cart-item" data-id="${product.id}" title="Kliknij, aby wyśrodkować w scenie">
           <div><div class="ci-name"><span class="qty-badge">${qty}×</span>${product.name}</div>
           <div class="ci-sub">${zl.format(product.price)} / szt.</div></div>
-          <div class="ci-price">${zl.format(product.price * qty)}</div>
+          <div class="ci-right">
+            <span class="ci-price">${zl.format(product.price * qty)}</span>
+            <button class="ci-remove" data-remove="${product.id}" title="Usuń jedną sztukę">−</button>
+          </div>
         </div>`
       )
       .join('');
@@ -444,6 +484,18 @@ function orderItems(): OrderPayloadItem[] {
   }
   return [...map.values()];
 }
+
+cartItemsEl.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  const removeId = target.dataset.remove;
+  if (removeId) {
+    e.stopPropagation();
+    planner.removeOneOfProduct(removeId);
+    return;
+  }
+  const row = target.closest<HTMLDivElement>('.cart-item');
+  if (row?.dataset.id) planner.focusProduct(row.dataset.id);
+});
 
 checkoutBtn.addEventListener('click', async () => {
   if (!planner.items.length) return;
@@ -510,8 +562,77 @@ ordersModal.addEventListener('click', (e) => {
   if (e.target === ordersModal) ordersModal.classList.remove('show');
 });
 
+// —————————————————————— MENEDŻER PROJEKTÓW (modal) ——————————————————————
+const projectsModal = $<HTMLDivElement>('#projects-modal');
+const projectsBody = $<HTMLDivElement>('#projects-body');
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+
+async function openProjects(): Promise<void> {
+  projectsBody.innerHTML = '<div class="orders-empty">Ładowanie…</div>';
+  projectsModal.classList.add('show');
+  const list = await api.listProjects();
+  if (!list) {
+    projectsBody.innerHTML = '<div class="orders-empty">Backend offline. Uruchom „npm run dev:full”, aby zapisywać projekty w chmurze.</div>';
+    return;
+  }
+  if (list.length === 0) {
+    projectsBody.innerHTML = '<div class="orders-empty">Brak projektów. Użyj „Zapisz bieżący jako…” poniżej.</div>';
+    return;
+  }
+  projectsBody.innerHTML = list
+    .map((p) => {
+      const roomName = p.room === 'kitchen' ? 'Kuchnia' : p.room === 'living' ? 'Salon' : '—';
+      return `<div class="order-row">
+        <div><div class="order-no">${esc(p.name)}</div>
+        <div class="order-meta">${dtFmt.format(new Date(p.savedAt))} · ${roomName} · ${p.count} mebli</div></div>
+        <div class="proj-actions">
+          <button class="btn" data-load="${p.id}">Wczytaj</button>
+          <button class="btn danger" data-del="${p.id}">Usuń</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+$<HTMLButtonElement>('#btn-projects').addEventListener('click', openProjects);
+$<HTMLButtonElement>('#projects-close').addEventListener('click', () => projectsModal.classList.remove('show'));
+projectsModal.addEventListener('click', (e) => {
+  if (e.target === projectsModal) projectsModal.classList.remove('show');
+});
+
+projectsBody.addEventListener('click', async (e) => {
+  const t = e.target as HTMLElement;
+  if (t.dataset.load) {
+    const r = await api.loadProject(t.dataset.load);
+    if (r?.snapshot) {
+      applyState(r.snapshot);
+      renderCatalog(currentCat);
+      pushHistory();
+      projectsModal.classList.remove('show');
+      toast('📂 Wczytano projekt');
+    } else {
+      toast('Nie udało się wczytać projektu');
+    }
+  } else if (t.dataset.del) {
+    if (confirm('Usunąć ten projekt?')) {
+      await api.deleteProject(t.dataset.del);
+      openProjects();
+    }
+  }
+});
+
+$<HTMLButtonElement>('#project-saveas').addEventListener('click', async () => {
+  const name = prompt('Nazwa projektu:', currentCat === 'kitchen' ? 'Moja kuchnia' : 'Mój salon');
+  if (!name) return;
+  const res = await api.saveProject(name, snapshot());
+  if (res) { toast('💾 Zapisano projekt w chmurze'); openProjects(); }
+  else toast('Backend offline — nie zapisano');
+});
+
 // —————————————————————— SKRÓTY KLAWISZOWE ——————————————————————
 window.addEventListener('keydown', (e) => {
+  // nie przechwytuj skrótów podczas pisania w polach tekstowych
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const ctrl = e.ctrlKey || e.metaKey;
   if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
   else if (ctrl && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
@@ -524,6 +645,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowDown') { e.preventDefault(); planner.nudgeSelected(0, 1); }
   else if (e.key === 'Escape') {
     if (ordersModal.classList.contains('show')) ordersModal.classList.remove('show');
+    else if (projectsModal.classList.contains('show')) projectsModal.classList.remove('show');
     else planner.select(null);
   }
 });

@@ -47,6 +47,18 @@ export interface OrderSummary {
   count: number;
 }
 
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  savedAt: string;
+  count: number;
+  room: RoomKind | null;
+}
+
+async function del<T>(url: string): Promise<T | null> {
+  return req<T>(url, { method: 'DELETE' });
+}
+
 export const api = {
   health: () => req<{ ok: boolean; orders: number }>('/api/health'),
   placeOrder: (payload: { items: OrderPayloadItem[]; total: number; room: RoomKind }) =>
@@ -54,4 +66,8 @@ export const api = {
   listOrders: () => req<OrderSummary[]>('/api/orders'),
   saveCart: (snapshot: Snapshot) => post<{ id: string }>('/api/cart', { snapshot }),
   loadCart: (id: string) => req<{ snapshot: Snapshot }>(`/api/cart/${id}`),
+  listProjects: () => req<ProjectSummary[]>('/api/projects'),
+  saveProject: (name: string, snapshot: Snapshot) => post<{ id: string }>('/api/projects', { name, snapshot }),
+  loadProject: (id: string) => req<{ snapshot: Snapshot }>(`/api/projects/${id}`),
+  deleteProject: (id: string) => del<{ ok: boolean }>(`/api/projects/${id}`),
 };
