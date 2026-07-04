@@ -4,6 +4,8 @@ Sklep meblowy w 3D ze **zintegrowanym planerem pomieszczeń** (salon / kuchnia).
 Przeglądasz katalog, wstawiasz meble do pokoju 3D, aranżujesz je na żywo, a to co
 ustawisz w pomieszczeniu jest jednocześnie Twoim koszykiem — z sumą do zapłaty.
 
+**🔴 Demo na żywo:** http://85.215.197.199:8090/
+
 > Zadanie rekrutacyjne — działające demo. Stack: **vanilla Three.js + TypeScript + Vite**
 > na froncie i **lekki backend koszyka** (wbudowany `http` Node, bez zależności).
 
@@ -103,6 +105,20 @@ przez proxy Vite (`/api`).
 | POST | `/api/orders` | złóż zamówienie `{ items, total, room }` → `{ orderNo, createdAt }` |
 | POST | `/api/cart` | zapisz projekt `{ snapshot }` → `{ id }` |
 | GET | `/api/cart/:id` | wczytaj zapisany projekt |
+
+## Wdrożenie
+
+Aplikacja jest wdrożona na VPS (Ubuntu + systemd) pod **http://85.215.197.199:8090/**.
+Backend (`server/index.mjs`, bez zależności) serwuje statyczny build z `dist/` oraz API
+na jednym porcie. Wdrożenie jest powtarzalne:
+
+```bash
+# Windows + PuTTY (pscp/plink w PATH)
+KEY='C:\Users\lagoc\Desktop\vps.ppk' HOST='root@85.215.197.199' PORT=8090 bash deploy/deploy.sh
+```
+
+Skrypt buduje front, kopiuje `dist/` + serwer, instaluje usługę `deploy/meblelab-3d.service`
+(`Restart=always`, autostart) i restartuje ją — nie ruszając innych usług na serwerze.
 
 ## Kluczowe decyzje projektowe
 
